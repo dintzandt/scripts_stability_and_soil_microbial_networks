@@ -1,0 +1,224 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R/Microbial") #PC
+
+library("phyloseq")
+library("vegan")
+library("ggplot2")
+
+#Read in ITS data
+count_tab <- read.table("count_tab_fun.txt", sep="\t",header=T, row.names=1)
+
+#Data wrangling
+temp <- read.table("tax_tab_fun.txt", header=T, row.names=1, sep="\t")
+temp$phylum[which(temp$phylum == "unidentified")] <- NA
+temp$class[which(temp$class == "unidentified")] <- NA
+tax_tab <- as.matrix(temp)
+sample_info_tab <- read.table("sample_info_tab_fun.txt", sep="\t",header=T, row.names=1)
+fungaltrait_tab <- read.table("fungaltrait_tab.txt", sep="\t",header=T, row.names=1)
+sample_info_tab$soil <- factor(sample_info_tab$soil)
+sample_info_tab$seed_density <- factor(sample_info_tab$seed_density)
+fungaltrait_tab$fungal_trait[which(is.na(fungaltrait_tab$fungal_trait))] <- "unknown"
+
+#Prune taxa
+temp <- count_tab[which(rowSums(count_tab) > 100),]
+sum(!is.na(count_tab[,1]))
+sum(!is.na(temp[,1]))
+count_tab_nonprune <- count_tab
+count_tab <- temp
+
+#########################################END OF DATA HANDLING################################################
+
+#####1 Community composition#####
+#clr transformation
+clr_counts <- microbiome::transform(count_tab, "clr")
+clr_count_phy <- otu_table(clr_counts, taxa_are_rows=T)
+sample_info_tab_phy <- sample_data(sample_info_tab)
+clr_physeq <- phyloseq(clr_count_phy, sample_info_tab_phy)
+
+#PCA
+clr_PCA <- ordinate(clr_physeq, "RDA")
+eigen_vals <- clr_PCA$CA$eig #to scale the axes according to their magnitude of separating the samples
+eigen_vals_perc <- sapply(clr_PCA$CA$eig[1:5], function(x) x / sum(clr_PCA$CA$eig)) 
+clr1 <- clr_PCA$CA$eig[1] / sum(clr_PCA$CA$eig)
+clr2 <- clr_PCA$CA$eig[2] / sum(clr_PCA$CA$eig)
+plot_ordination(clr_physeq, clr_PCA, type="samples", color="soil") + 
+  geom_point(size = 2) +
+  coord_fixed(clr2 / clr1) +
+  stat_ellipse(aes(group = soil), linetype = 2)
+
+#Generate distance matrix
+clr_dist_matrix <- phyloseq::distance(clr_physeq, method = "euclidean")
+
+#Test separation
+vegan::adonis(clr_dist_matrix ~ phyloseq::sample_data(clr_physeq)$soil) #significant separation
+
+#Df for ggplot
+temp <- data.frame(scores(clr_PCA)$sites)
+dfplot <- merge(temp, data.frame(sample_data(clr_physeq)), by = "row.names")
+
+#Figure
+plotB <- ggplot() + 
+  geom_hline(yintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+  geom_vline(xintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+  geom_point(data=dfplot, aes(x = PC1, y = PC2, colour=soil, shape=soil), size=2)+
+  ggtitle("Fungi") +
+  scale_colour_manual(values=c("#009E73","#E69F00",  "#0072B2", "#D55E00", "#999999", "#56B4E9", "#CC79A7", "black"), name="Soil")+
+  scale_fill_manual(values=c("#E69F00", "#009E73", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#CC79A7"), name="Soil")+
+  #geom_segment(data=env.scores, aes(x=0, y=0, xend=Axis.1*DEF, yend=Axis.2*DEF), arrow=arrow(length = unit(0.03, "npc")), lwd=0.5, colour="grey") + 
+  #geom_text(data=env.scores, aes(x=Axis.1*DEF, y=Axis.2*DEF), label=rownames(env.scores), nudge_y = -0.03, size=3)  + 
+  xlab("PCA 1 - 29.1%")+ 
+  ylab("PCA 2 - 5.4%")+
+  theme_bw() +
+  theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+  theme(axis.title.x=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+  theme(axis.text=element_text(size=10))+
+  theme(panel.grid.minor = element_blank())+
+  theme(panel.grid.major = element_blank())+
+  theme(legend.position="none")
+plotB
+
+#Save
+library(cowplot)
+prow <- plot_grid(plotB, labels=c(""), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigX_PCA_ITS.png", prow,
+#          ncol = 0.8, nrow = 0.8, base_aspect_ratio = 1.2, dpi=600)
+
+
+#####2 DIVERSITY#####
+#Based on multiple rarefaction
+library(metagMisc)
+count_tab_phy_noprune <- otu_table(count_tab_nonprune, taxa_are_rows=T)
+tax_tab_phy <- tax_table(tax_tab)
+OTU_physeq_noprune <- phyloseq(count_tab_phy_noprune, tax_tab_phy, sample_info_tab_phy)
+
+alpha_div_ITS <- phyloseq_mult_raref_div(OTU_physeq_noprune, SampSize = min(sample_sums(OTU_physeq_noprune)),
+                                         iter = 1000, divindex = c("Observed", "Shannon"), parallel = FALSE,
+                                         verbose = TRUE)
+
+#Save
+#save(alpha_div_ITS, file = "alpha_div_ITS.RDa")
+
+
+######3 TAXA OVERLAP#####
+#Create phyloseq object
+count_phy <- otu_table(count_tab, taxa_are_rows=T)
+sample_info_tab_phy <- sample_data(sample_info_tab)
+count_physeq <- phyloseq(count_phy, sample_info_tab_phy)
+
+library(MicEco)
+plot <- ps_venn(count_physeq, "soil",
+                fraction = 0,
+                weight = F,
+                relative = F,
+                plot = T,
+                edges= list(col = c("#E69F00", "#009E73"), lex = 1.5),
+                fill = list(fill = c("#E69F00", "#009E73"), alpha = 0.5),
+                labels = list(cex = 1),
+                quantities = list(cex = 1, type = c("percent", "counts")),
+                main = list(label = c("Fungi"), cex = 1.5)
+)
+
+plot
+
+library(cowplot)
+prow <- plot_grid(plot, labels=c("B"), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigSX_Venn_ITS.png", prow,
+#          ncol = 0.8, nrow = 0.8, base_aspect_ratio = 1.2, dpi=600) #PC
+
+
+######4 TAXA RELATIVE HABITAT SPECIALISATION#####
+#Following Chen et al. (2021), ISME J, doi:10.1038/s41396-021-00988-w
+#Make physeq object without pruning
+count_tab_phy_noprune <- otu_table(count_tab_nonprune, taxa_are_rows=T)
+
+#Rarefy
+sub <- rarefy_even_depth(count_tab_phy_noprune, sample.size = min(sample_sums(count_tab_phy_noprune)), rngseed = 1234)
+dim(sub)
+CV_ITS <- list()
+bias_ITS <- list()
+for (i in 1:(dim(sub)[1])) {
+  CV_ITS [[paste(row.names(sub)[i])]] <- sd(sub[i,])/mean(sub[i,])
+  bias_ITS [[paste(row.names(sub)[i])]] <- sqrt(2/sum(sub[i,]))
+}
+
+CV_ITS
+bias_ITS
+
+#Make dataframe
+temp <- reshape2::melt(CV_ITS)
+head(temp)
+temp2 <- reshape2::melt(bias_ITS)
+head(temp2)
+colnames(temp) <- c("SI", "OTU")
+colnames(temp2) <- c("bias", "OTU")
+temp3 <- merge(temp, temp2, by = c("OTU"))
+temp3$SI_cor <- temp3$SI - temp3$bias
+min(temp3$SI_cor) #good, no negative values
+OTU_SI_ITS <- temp3
+#save(OTU_SI_ITS, file="OTU_SI_ITS_rare_noprune_ss1234.RDa")
+ITS_rare <- sub
+#save(ITS_rare, file = "ITS_rare_ss1234.RDa")
+
+#Merge to rarefied reads
+sub <- data.frame(sub)
+sub$OTU <- row.names(sub)
+SI_ITS <- merge(sub, temp3, by = c("OTU"))
+SI_ITS_OTU <- temp3
+#save(SI_ITS_OTU, file="SI_ITS_OTU_rare_noprune_ss1234.RDa")
+
+#Calculate average SI per sample
+avg_SI <- list()
+for (i in c(2:61)){
+  avg_SI[paste(colnames(SI_ITS[i]))] <- weighted.mean(SI_ITS$SI_cor, SI_ITS[,i], na.rm=T)
+}
+
+avg_SI
+
+#Merge
+temp3 <- reshape2::melt(avg_SI)
+colnames(temp3) <- c("avgSI", "sample.code")
+SI_ITS_persample <- temp3
+#save(SI_ITS_persample, file = "SI_ITS_persample_rare_noprune_ss1234.RDa")
+
+
+######5 TAXA LN RESPONSE RATIO SOILS#####
+#What could be done: average rare_reads per OTU per soil type. Calculate lnRRR. CWM per sample per cluster.
+load("ITS_rare_ss1234.RDa")
+head(ITS_rare)
+ITS_rare <- data.frame(ITS_rare)
+ITS_rare$OTU <- row.names(ITS_rare)
+rare_ITS <- melt(ITS_rare)
+colnames(rare_ITS) <- c("OTU", "sample", "rare_reads")
+
+#Add soil
+rare_ITS$soil <- str_sub(str_split_fixed(rare_ITS$sample, n=2, "_")[,1], -1, -1)
+rare_ITS$soil <- revalue(rare_ITS$soil, c("C"="abandoned", "B"="grassland"))
+
+#Average reads per OTU per soil
+avgrare_ITS <- ddply(rare_ITS, c("OTU", "soil"), summarise,
+                     avgrare_read = mean(rare_reads, na.rm=TRUE))
+avgrare_ITS
+
+#Separate into grassland and abandoned avgrare_read columns
+sub_grass <- avgrare_ITS[which(avgrare_ITS$soil == "grassland"),]
+sub_aban <- avgrare_ITS[which(avgrare_ITS$soil == "abandoned"),]
+colnames(sub_grass)[3] <- "avgrare_read_grass"
+colnames(sub_aban)[3] <- "avgrare_read_aban"
+rare_both <- merge(sub_grass[,c(1,3)], sub_aban[,c(1,3)], by = c("OTU"), all=T)
+
+#Replace 0 with very low value so calculation can be done
+rare_both$avgrare_read_grass[rare_both$avgrare_read_grass == 0] <- 0.0001
+rare_both$avgrare_read_aban[rare_both$avgrare_read_aban == 0] <- 0.0001
+head(rare_both)
+
+#Calculate ratio
+rare_both$ln_grass_aban_ratio <- log(rare_both$avgrare_read_grass/rare_both$avgrare_read_aban)
+range(rare_both$ln_grass_aban_ratio)
+head(rare_both) #positive value = enriched in grass, negative value = enriched in aban
+#A bit wonky that the 0 is so important and results in the highest values and not a difference between 5 and 33, for example...
+
+#Save
+#save(rare_both, file = "lnGAR_rare_both_ITS.RDa")
