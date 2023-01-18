@@ -1,0 +1,365 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R") #PC
+
+library(ggplot2)
+library(zoo)
+library("QuantPsyc")
+library(reshape2)
+library(stringr)
+
+#Load data
+load("dfscores_DCA.RDa")
+head(dfscores)
+load("dfvar_DCA.RDa")
+head(dfvar)
+load("Comm_2.Rda")
+head(Comm)
+str(Comm)
+
+#Add replicate number
+dfscores$rep <- readr::parse_number(dfscores$pot)
+Comm$rep <- readr::parse_number(Comm$code)
+
+######1 Check out patterns for each mesocosm#####
+#Make pdf for each rep
+#Total biomass
+Comm$treatment <- factor(paste(Comm$soil, Comm$seed_density, sep="_"))
+Comm_Jul <- Comm[which(Comm$month == "Jul"),]
+Comm_Jul$soil <- factor(Comm_Jul$soil, levels = c("grassland", "abandoned"))
+
+pdf(file="totbio_per rep.pdf")
+for (i in c(1:10)) {
+  
+  sub <- Comm_Jul[which(Comm_Jul$rep == i),]
+  
+  plot <- ggplot(data=sub, aes(x=date, y=total_biomass, colour = soil))+
+    facet_grid(seed_density ~ soil) +
+    annotate("rect", fill = "grey", alpha = 0.6, xmin = -Inf, xmax = 2012,ymin = -Inf, ymax = Inf) +
+    geom_line(aes(group = code), size = 1) +
+    geom_point(size=2)+
+    scale_shape_manual(values=c(16,17,15), name="Density") +
+    scale_colour_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#F0E442", "#CC79A7"), name="Soil")+
+    xlab("Year")+ 
+    ylab("Total biomass (g)")+
+    theme_bw() +
+    theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+    theme(axis.title.x=element_blank())+
+    theme(axis.text=element_text(size=10))+
+    theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+    theme(legend.key.size = unit(0.15, "in"))+
+    theme(panel.grid.minor = element_blank())+
+    scale_x_continuous(breaks=c(2007, 2012, 2016, 2019))+
+    theme(panel.grid.major = element_blank())
+  
+  print(plot)
+  
+}
+
+dev.off()
+#A bit variable, so linear trend should be the best we can do
+
+#Diversity
+pdf(file="diversity_per rep.pdf")
+for (i in c(1:10)) {
+  
+  sub <- Comm_Jul[which(Comm_Jul$rep == i),]
+  
+  plot <- ggplot(data=sub, aes(x=date, y=diversity, colour = soil))+
+    facet_grid(seed_density ~ soil) +
+    annotate("rect", fill = "grey", alpha = 0.6, xmin = -Inf, xmax = 2012,ymin = -Inf, ymax = Inf) +
+    geom_line(aes(group = code), size = 1) +
+    geom_point(size=2)+
+    scale_shape_manual(values=c(16,17,15), name="Density") +
+    scale_colour_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#F0E442", "#CC79A7"), name="Soil")+
+    xlab("Year")+ 
+    ylab("Diversity (Shannon)")+
+    theme_bw() +
+    theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+    theme(axis.title.x=element_blank())+
+    theme(axis.text=element_text(size=10))+
+    theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+    theme(legend.key.size = unit(0.15, "in"))+
+    theme(panel.grid.minor = element_blank())+
+    scale_x_continuous(breaks=c(2007, 2012, 2016, 2019))+
+    theme(panel.grid.major = element_blank())
+  
+  print(plot)
+  
+}
+
+dev.off()
+#Also variable, linear trend should be best as well
+#Diversity many cases seems to increase not only in the year directly after invasion started, also the second year.
+
+#DCA1
+pdf(file="DCA1_per rep.pdf")
+for (i in c(1:10)) {
+  
+  sub <- dfscores[which(dfscores$rep == i),]
+  
+  plot <- ggplot(data=sub, aes(x=date, y=scr1, colour = soil))+
+    facet_grid(seed ~ soil) +
+    annotate("rect", fill = "grey", alpha = 0.6, xmin = -Inf, xmax = 2012,ymin = -Inf, ymax = Inf) +
+    geom_hline(yintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+    #geom_vline(xintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+    geom_point(size=2)+
+    geom_path(aes(group=treatment), linejoin = "mitre", arrow = arrow(type = "closed", 
+                                                                      length = unit(0.02, "npc"))) +
+    scale_shape_manual(values=c(16,17,15), name="Density") +
+    scale_colour_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#F0E442", "#CC79A7"), name="Soil")+
+    xlab("Year")+ 
+    ylab("DCA 1")+
+    ggtitle(i) +
+    theme_bw() +
+    theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+    theme(axis.title.x=element_text(size=11, colour = "black", margin=(margin(10,0,0,0))))+
+    theme(axis.text=element_text(size=10))+
+    theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+    theme(legend.key.size = unit(0.15, "in"))+
+    theme(panel.grid.minor = element_blank())+
+    theme(panel.grid.major = element_blank())
+  
+  print(plot)
+  
+}
+
+dev.off()
+#Looks like trend is best captured by a linear trend
+
+#DCA2
+pdf(file="DCA2_per rep.pdf")
+for (i in c(1:10)) {
+  
+  sub <- dfscores[which(dfscores$rep == i),]
+  
+  plot <- ggplot(data=sub, aes(x=date, y=scr2, colour = soil))+
+    facet_grid(seed ~ soil) +
+    annotate("rect", fill = "grey", alpha = 0.6, xmin = -Inf, xmax = 2012,ymin = -Inf, ymax = Inf) +
+    geom_hline(yintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+    #geom_vline(xintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+    geom_point(size=2)+
+    geom_path(aes(group=treatment), linejoin = "mitre", arrow = arrow(type = "closed", 
+                                                                      length = unit(0.02, "npc"))) +
+    scale_shape_manual(values=c(16,17,15), name="Density") +
+    scale_colour_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#F0E442", "#CC79A7"), name="Soil")+
+    xlab("Year")+ 
+    ylab("DCA 2")+
+    ggtitle(i) +
+    theme_bw() +
+    theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+    theme(axis.title.x=element_text(size=11, colour = "black", margin=(margin(10,0,0,0))))+
+    theme(axis.text=element_text(size=10))+
+    theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+    theme(legend.key.size = unit(0.15, "in"))+
+    theme(panel.grid.minor = element_blank())+
+    theme(panel.grid.major = element_blank())
+  
+  print(plot)
+  
+}
+
+dev.off()
+#Trend after 2012 probably best captured by a linear model
+
+#DCA3
+pdf(file="DCA3_per rep.pdf")
+for (i in c(1:10)) {
+  
+  sub <- dfscores[which(dfscores$rep == i),]
+  
+  plot <- ggplot(data=sub, aes(x=date, y=scr3, colour = soil))+
+    facet_grid(seed ~ soil) +
+    annotate("rect", fill = "grey", alpha = 0.6, xmin = -Inf, xmax = 2012,ymin = -Inf, ymax = Inf) +
+    geom_hline(yintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+    #geom_vline(xintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+    geom_point(size=2)+
+    geom_path(aes(group=treatment), linejoin = "mitre", arrow = arrow(type = "closed", 
+                                                                      length = unit(0.02, "npc"))) +
+    scale_shape_manual(values=c(16,17,15), name="Density") +
+    scale_colour_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#F0E442", "#CC79A7"), name="Soil")+
+    xlab("Year")+ 
+    ylab("DCA 3")+
+    ggtitle(i) +
+    theme_bw() +
+    theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+    theme(axis.title.x=element_text(size=11, colour = "black", margin=(margin(10,0,0,0))))+
+    theme(axis.text=element_text(size=10))+
+    theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+    theme(legend.key.size = unit(0.15, "in"))+
+    theme(panel.grid.minor = element_blank())+
+    theme(panel.grid.major = element_blank())
+  
+  print(plot)
+  
+}
+
+dev.off()
+#Again, linear trend seems best
+
+
+#####2 Calculate trend parameters#####
+#Total biomass
+#Loop with LM and plots in pdf
+Comm_Jul$year.0 <- as.numeric(Comm_Jul$year) - 2007
+
+totbio_trend <- list()
+totbio_ef2012 <- list()
+
+pdf(file="LM_fit_totbio.pdf", width = 16 , height = 10)
+par(mfrow=c(4,4))
+
+for (t in levels(Comm_Jul$treatment)) {
+  sub_1 <- Comm_Jul[which(Comm_Jul$treatment == t),]
+  
+  for (i in c(1:10)) {
+    
+    sub_2 <- sub_1[which(sub_1$rep == i),]
+    
+    plot(total_biomass ~ year.0, data=sub_2, pch=19, main=paste(t,i))
+    mtrend <- lm(total_biomass ~ year.0, data = sub_2[sub_2$year.0 > 4,])
+    abline(mtrend, col="red",pch=19,lwd=2)
+    
+    totbio_trend[paste(t, i, sep="_")] <- lm.beta(mtrend)
+    totbio_ef2012[paste(t, i, sep="_")] <- sub_2$total_biomass[sub_2$year.0==5] - sub_2$total_biomass[sub_2$year.0==4]
+    
+  }}
+
+dev.off()
+
+totbio_trend
+totbio_ef2012
+
+#Diversity
+#Loop with LM and plots in pdf
+div_trend <- list()
+div_ef2012_1yr <- list()
+div_ef2012_2yr <- list()
+
+pdf(file="LM_fit_div.pdf", width = 16 , height = 10)
+par(mfrow=c(4,4))
+
+for (t in levels(Comm_Jul$treatment)) {
+  sub_1 <- Comm_Jul[which(Comm_Jul$treatment == t),]
+  
+  for (i in c(1:10)) {
+    
+    sub_2 <- sub_1[which(sub_1$rep == i),]
+    
+    plot(diversity ~ year.0, data=sub_2, pch=19, main=paste(t,i))
+    mtrend <- lm(diversity ~ year.0, data = sub_2[sub_2$year.0 > 4,])
+    abline(mtrend, col="red",pch=19,lwd=2)
+    
+    div_trend[paste(t, i, sep="_")] <- lm.beta(mtrend)
+    div_ef2012_1yr[paste(t, i, sep="_")] <- sub_2$diversity[sub_2$year.0==5] - sub_2$diversity[sub_2$year.0==4]
+    div_ef2012_2yr[paste(t, i, sep="_")] <- sub_2$diversity[sub_2$year.0==6] - sub_2$diversity[sub_2$year.0==4]
+    
+  }}
+
+dev.off()
+
+div_trend
+div_ef2012_1yr
+div_ef2012_2yr
+
+#DCA1
+#Loop with LM and plots in pdf
+dfscores$year.0 <- as.numeric(dfscores$year) - 2007
+
+scr1_trend <- list()
+scr1_ef2012 <- list()
+
+pdf(file="LM_fit_DCA1.pdf", width = 16 , height = 10)
+par(mfrow=c(4,4))
+
+for (t in levels(dfscores$treatment)) {
+  sub_1 <- dfscores[which(dfscores$treatment == t),]
+  
+  for (i in c(1:10)) {
+    
+    sub_2 <- sub_1[which(sub_1$rep == i),]
+    
+    plot(scr1 ~ year.0, data=sub_2, pch=19, main=paste(t,i))
+    mtrend <- lm(scr1 ~ year.0, data = sub_2[sub_2$year.0 > 4,])
+    abline(mtrend, col="red",pch=19,lwd=2)
+    
+    scr1_trend[paste(t, i, sep="_")] <- lm.beta(mtrend)
+    scr1_ef2012[paste(t, i, sep="_")] <- sub_2$scr1[sub_2$year.0==5] - sub_2$scr1[sub_2$year.0==4]
+    
+  }}
+
+dev.off()
+
+scr1_trend
+scr1_ef2012
+
+#DCA2
+scr2_trend <- list()
+scr2_ef2012 <- list()
+
+pdf(file="LM_fit_DCA2.pdf", width = 16 , height = 10)
+par(mfrow=c(4,4))
+
+for (t in levels(dfscores$treatment)) {
+  sub_1 <- dfscores[which(dfscores$treatment == t),]
+  
+  for (i in c(1:10)) {
+    
+    sub_2 <- sub_1[which(sub_1$rep == i),]
+    
+    plot(scr2 ~ year.0, data=sub_2, pch=19, main=paste(t,i))
+    mtrend <- lm(scr2 ~ year.0, data = sub_2[sub_2$year.0 > 4,])
+    abline(mtrend, col="red",pch=19,lwd=2)
+    
+    scr2_trend[paste(t, i, sep="_")] <- lm.beta(mtrend)
+    scr2_ef2012[paste(t, i, sep="_")] <- sub_2$scr2[sub_2$year.0==5] - sub_2$scr2[sub_2$year.0==4]
+    
+  }}
+
+dev.off()
+
+scr2_trend
+scr2_ef2012
+
+#DCA3
+scr3_trend <- list()
+scr3_ef2012 <- list()
+
+pdf(file="LM_fit_DCA3.pdf", width = 16 , height = 10)
+par(mfrow=c(4,4))
+
+for (t in levels(dfscores$treatment)) {
+  sub_1 <- dfscores[which(dfscores$treatment == t),]
+  
+  for (i in c(1:10)) {
+    
+    sub_2 <- sub_1[which(sub_1$rep == i),]
+    
+    plot(scr3 ~ year.0, data=sub_2, pch=19, main=paste(t,i))
+    mtrend <- lm(scr3 ~ year.0, data = sub_2[sub_2$year.0 > 4,])
+    abline(mtrend, col="red",pch=19,lwd=2)
+    
+    scr3_trend[paste(t, i, sep="_")] <- lm.beta(mtrend)
+    scr3_ef2012[paste(t, i, sep="_")] <- sub_2$scr3[sub_2$year.0==5] - sub_2$scr3[sub_2$year.0==4]
+    
+  }}
+
+dev.off()
+
+scr3_trend
+scr3_ef2012
+
+#Place parameters in df
+temp <- cbind(melt(totbio_trend), melt(div_trend)$value, melt(scr1_trend)$value, melt(scr2_trend)$value, melt(scr3_trend)$value,
+              melt(totbio_ef2012)$value, melt(div_ef2012_1yr)$value, melt(div_ef2012_2yr)$value, 
+              melt(scr1_ef2012)$value, melt(scr2_ef2012)$value, melt(scr3_ef2012)$value)
+colnames(temp) <- c("totbio_trend", "code", "div_trend", "scr1_trend", "scr2_trend", "scr3_trend", 
+                    "totbio_ef", "div_ef_1yr", "div_ef_2yr", "scr1_ef", "scr2_ef", "scr3_ef")
+str(temp)
+temp$code <- factor(temp$code)
+temp$soil <- str_split_fixed(temp$code, n=3, "_")[,1]
+temp$seed <- str_split_fixed(temp$code, n=3, "_")[,2]
+temp$rep <- str_split_fixed(temp$code, n=3, "_")[,3]
+head(temp)
+Comm_Dev_Para <- temp
+#save(Comm_Dev_Para, file = "Comm_Dev_Para.RDa")
