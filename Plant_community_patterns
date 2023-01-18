@@ -1,0 +1,648 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R") #PC
+
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(plyr)
+library(stringr)
+library(vegan)
+library(tidyr)
+library("QuantPsyc")
+
+#Load data
+Data <- read.table("species_proportions.txt", sep="\t",header=T)
+abbr <- read.table("abbr.txt", sep="\t",header=T)
+Comm <- read.table("community_parameters.txt", sep="\t",header=T)
+CLOPLA=read.table("CLOPLA-traits-binom.txt",header=T,sep="\t")
+
+#Check dfs
+head(Data)
+head(abbr)
+head(Comm)
+
+#Get species proportions into long format and match with abbr
+temp <- melt(Data, id = c("pot", "code", "year", "month", "seed_density", "soil"))
+colnames(temp) <- c("pot", "code", "year", "month", "seed_density", "soil", "Code.zuzana", "prop")
+head(temp)
+Data <- merge(temp, abbr, by = c("Code.zuzana"))
+
+#Structure
+str(Data)
+
+#Make time a date - Data
+library(zoo)
+Data$month_year <- factor(paste(Data$month, Data$year, sep = " "))
+str(Data)
+
+Data$date <- Data$month_year
+levels(Data$date)
+Data$date <- revalue(Data$date, c("Jul 2007" = "2007-07", "Jul 2008" = "2008-07", "Jul 2009" = "2009-07", "Jul 2010" = "2010-07", "Jul 2011" = "2011-07", "Jul 2012" = "2012-07",
+                     "Jul 2013" = "2013-07", "Jul 2016" = "2016-07", "Jul 2017" = "2017-07", "Jul 2018" = "2018-07", "Jul 2019" = "2019-07",
+                     "Sep 2007" = "2007-09", "Sep 2008" = "2008-09", "Sep 2009" = "2009-09", "Sep 2010" = "2010-09", "Sep 2011" = "2011-09"))
+
+Data$date <- as.yearmon(Data$date)
+
+#Calculate relative abundances
+head(Comm)
+temp <- merge(Data, Comm, by = c("soil", "seed_density", "month", "year", "code", "pot"))
+head(temp)
+temp$relprop <- temp$prop/temp$total_biomass
+Data <- temp
+
+#Make time a date - Comm
+library(zoo)
+Comm$month_year <- factor(paste(Comm$month, Comm$year, sep = " "))
+str(Comm)
+
+Comm$date <- Comm$month_year
+levels(Comm$date)
+Comm$date <- revalue(Comm$date, c("Jul 2007" = "2007-07", "Jul 2008" = "2008-07", "Jul 2009" = "2009-07", "Jul 2010" = "2010-07", "Jul 2011" = "2011-07", "Jul 2012" = "2012-07",
+                                  "Jul 2013" = "2013-07", "Jul 2016" = "2016-07", "Jul 2017" = "2017-07", "Jul 2018" = "2018-07", "Jul 2019" = "2019-07",
+                                  "Sep 2007" = "2007-09", "Sep 2008" = "2008-09", "Sep 2009" = "2009-09", "Sep 2010" = "2010-09", "Sep 2011" = "2011-09"))
+
+Comm$date <- as.yearmon(Comm$date)
+str(Comm)
+
+#Calculate species numbers_2 (to check based on recorded proportions)
+head(Data)
+Data$code_2 <- factor(paste(Data$soil, Data$seed_density, Data$month, Data$year, Data$code, sep = "_"))
+Data$code_2
+
+#Calculate Shannon diversity
+diversity <- list()
+
+for (i in levels(Data$code_2)) {
+  sub <- Data[which(Data$code_2 == i),]
+  diversity[[paste(i)]] <- vegan::diversity(sub$relprop)
+  
+}
+diversity   
+
+head(Comm)
+temp <- melt(diversity)
+colnames(temp) <- c("diversity", "L1")
+temp$soil <- str_split_fixed(temp$L1, n=5, "_")[,1]
+temp$seed_density <- str_split_fixed(temp$L1, n=5, "_")[,2]
+temp$month <- str_split_fixed(temp$L1, n=5, "_")[,3]
+temp$year <- str_split_fixed(temp$L1, n=5, "_")[,4]
+temp$code <- str_split_fixed(temp$L1, n=5, "_")[,5]
+Comm <- merge(Comm, temp, by = c("soil", "seed_density", "month", "year", "code"))
+
+#Calculated %invaded species and %invaded biomass
+head(Data)
+head(Comm)
+
+invaded <- list()
+invaded_bio <- list()
+
+for (i in levels(Data$code_2)) {
+  
+  sub2 <- Data[which(Data$code_2 == i),]
+  invaded[i] <- sum(sub2$prop[sub2$sown == "no"] > 0) / (sum(sub2$prop[sub2$sown == "no"] > 0) + sum(sub2$prop[sub2$sown == "yes"] > 0) )
+  invaded_bio[i] <- sum(sub2$prop[sub2$sown == "no"]) / (sum(sub2$prop[sub2$sown == "no"]) + sum(sub2$prop[sub2$sown == "yes"]) )
+
+}
+
+temp <- melt(invaded)
+colnames(temp) <- c("invaded_perc", "L1")
+temp2 <- melt(invaded_bio)
+colnames(temp2) <- c("invaded_bio", "L1")
+
+Comm <- merge(Comm, temp, by = c("L1"))
+Comm <- merge(Comm, temp2, by = c("L1"))
+
+#############################################END OF DATA HANDLING############################################################
+#####1 BASIC FIGURES - WHOLE COMMUNITY PARAMETERS#####
+#Total biomass
+head(Comm)
+Comm_Jul <- Comm[which(Comm$month == "Jul"),]
+Comm_Jul$soil <- factor(Comm_Jul$soil, levels = c("grassland", "abandoned"))
+plotB_2 <- ggplot(data=Comm_Jul, aes(x=date, y=total_biomass, colour = soil))+
+  annotate("rect", fill = "grey", alpha = 0.6, xmin = -Inf, xmax = 2012,ymin = -Inf, ymax = Inf) +
+  geom_line(alpha = 0.3, aes(group = code)) +
+  stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+               fun.args=list(conf.int=0.95), fill="grey50", colour = NA, alpha = 0.5, aes(group = soil))+
+  stat_summary(geom="line", fun=mean, size = 2)+
+  #stat_summary(geom="point", fun.y=mean, color="red") +
+  scale_shape_manual(values=c(16,17,15), name="Density") +
+  scale_colour_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#F0E442", "#CC79A7"), name="Soil")+
+  xlab("Year")+ 
+  ylab("Total biomass (g)")+
+  theme_bw() +
+  theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+  theme(axis.title.x=element_blank())+
+  theme(axis.text=element_text(size=10))+
+  theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+  theme(legend.key.size = unit(0.15, "in"))+
+  theme(panel.grid.minor = element_blank())+
+  scale_x_continuous(breaks=c(2007, 2012, 2016, 2019))+
+  theme(panel.grid.major = element_blank())
+
+plotB_2
+
+#Invaded biomass proportion
+Comm_Jul$invaded_bio[Comm_Jul$year < 2012] <- 0
+plotC_2 <- ggplot(data=Comm_Jul, aes(x=date, y=invaded_bio, colour = soil))+
+  annotate("rect", fill = "grey", alpha = 0.6, xmin = -Inf, xmax = 2012,ymin = -Inf, ymax = Inf) +
+  geom_line(alpha = 0.3, aes(group = code)) +
+  stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+               fun.args=list(conf.int=0.95), fill="grey50", colour = NA, alpha = 0.5, aes(group = soil))+
+  stat_summary(geom="line", fun=mean, size = 2)+
+  #stat_summary(geom="point", fun.y=mean, color="red") +
+  scale_shape_manual(values=c(16,17,15), name="Density") +
+  scale_colour_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#F0E442", "#CC79A7"), name="Soil")+
+  xlab("Year")+ 
+  ylab("Proportion invaded biomass")+
+  theme_bw() +
+  theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+  theme(axis.title.x=element_blank())+
+  theme(axis.text=element_text(size=10))+
+  theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+  theme(legend.key.size = unit(0.15, "in"))+
+  theme(panel.grid.minor = element_blank())+
+  scale_x_continuous(breaks=c(2007, 2012, 2016, 2019))+
+  theme(panel.grid.major = element_blank())
+
+plotC_2
+
+#Diversity
+plotA_2 <- ggplot(data=Comm_Jul, aes(x=date, y=diversity, colour = soil))+
+  annotate("rect", fill = "grey", alpha = 0.6, xmin = -Inf, xmax = 2012,ymin = -Inf, ymax = Inf) +
+  geom_line(alpha = 0.3, aes(group = code)) +
+  stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+               fun.args=list(conf.int=0.95), fill="grey50", colour = NA, alpha = 0.5, aes(group = soil))+
+  stat_summary(geom="line", fun=mean, size = 2)+
+  #stat_summary(geom="point", fun.y=mean, color="red") +
+  scale_shape_manual(values=c(16,17,15), name="Density") +
+  scale_colour_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#F0E442", "#CC79A7"), name="Soil")+
+  xlab("Year")+ 
+  ylab("Community diversity (Shannon)")+
+  theme_bw() +
+  theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+  theme(axis.title.x=element_blank())+
+  theme(axis.text=element_text(size=10))+
+  theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+  theme(legend.key.size = unit(0.15, "in"))+
+  theme(panel.grid.minor = element_blank())+
+  scale_x_continuous(breaks=c(2007, 2012, 2016, 2019))+
+  theme(panel.grid.major = element_blank())
+
+plotA_2
+
+#Save
+library(cowplot)
+prowABC_2 <- plot_grid(plotA_2 + theme(legend.position="none"), plotB_2 + theme(legend.position="none"), plotC_2 + theme(legend.position="none"), 
+                       labels=c("A", "B", "C"), ncol=3, nrow=1, align="hv", label_size=12, vjust=1.1)
+prowABC_2
+legend <- get_legend(plotA_2 + theme(legend.box.margin = margin(0, 0, 0, 12)))
+
+prowABC_l_2 <- plot_grid(prowABC_2, legend, ncol = 2, rel_widths = c(2,.3))
+prowABC_l_2 
+
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/Fig_aboveground_over_time_2.png", prowABC_l_2,
+#          ncol = 2, nrow = 1, base_aspect_ratio = 1.8, dpi=600) #PC
+
+
+#####1.2 STATS TO FIGURES#####
+#Stats to figures
+library(nlme)
+library(car)
+library(lme4)
+library(glmmTMB)
+head(Comm)
+
+Pot_position <- read.table("Pot_position.txt", sep="\t",header=T)
+head(Pot_position)
+colnames(Pot_position)[1] <- "code"
+Comm <- merge(Comm, Pot_position, by = c("code"))
+str(Comm)
+Comm$row <- as.numeric(Comm$row)
+
+#Total biomass
+head(Comm) #code is mesocosm code
+m1 <- lmer(sqrt(total_biomass) ~ soil * scale(date) + (1| code) + (1|row) + (1|seed_density), data=Comm)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#Diversity
+m1 <- lmer(diversity ~ soil * scale(date) + (1| code) + (1|seed_density), data=Comm)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#Proportion invaded biomass
+sub <- Comm[which(Comm$date > "Jul 2012"),]
+m1 <- lmer(invaded_bio ~ soil * scale(date) + (1| code), data=sub) #Inclusion of seed density results in singular fit error
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+
+###################################2 COMMUNITY COMPOSITION#############################################
+#Calculate number of observation of each plant species
+Data$community <- paste(Data$soil, Data$seed_density, Data$month, Data$year, Data$code, sep = ".")
+
+#Take out September data points
+Data_sub1 <- Data[which(Data$month == "Jul"),]
+
+#Loop
+Data_sub1$abbr <- factor(Data_sub1$abbr)
+
+cases <- list()
+
+for (i in levels(Data_sub1$abbr)) {
+  
+  sub <- Data_sub1[which(Data_sub1$abbr == i),] 
+  cases[paste(i)] <- sum(sub$prop > 0)
+  
+}
+
+temp <- melt(cases)
+colnames(temp) <- c("nobs", "abbr")
+cases <- temp
+
+#Merge to Data
+temp2 <- merge(Data_sub1, cases, by = c("abbr"))
+Data_sub1 <- temp2
+
+#DCA analysis
+#Subset data to only include species > 10 observations
+cases
+Data_sub <- Data_sub1[which(Data_sub1$nobs > 10),]
+
+#Make community matrix with species as columns and communities as rows
+sub <- Data_sub[,c(19, 9, 1)] #code_2 abbr prop
+sub2 <- spread(sub, abbr, prop)
+colnames(sub2)[1] <- c("fullcode")
+load("Comm_2.RDa")
+colnames(Comm)[c(2,4)] <- c("fullcode", "seed")
+df_community_matrix <- merge(sub2, Comm, by = c("fullcode"))
+temp <- data.matrix(df_community_matrix[,c(1:60)])
+community_matrix <- temp[,-1]
+
+#Add rownames of community
+temp2 <- as.matrix(df_community_matrix)
+rownames(community_matrix) <- temp2[,1]
+community_matrix #good
+
+#DCA
+rdout <- decorana(log1p(community_matrix), iweigh = 1)
+plot(rdout, display = "sites", type = "points")
+plot(rdout, display = "species", type = "text")
+
+#Get scores sites
+summary(rdout)$site.scores[,3]
+str(summary(rdout))
+
+scr1 = scores(rdout,display="si")[,1]
+scr2 = scores(rdout,display="si")[,2]
+scr3 = summary(rdout)$site.scores[,3]
+scr4 = summary(rdout)$site.scores[,4]
+
+#Get scores species
+scrvar1 = scores(rdout,display="sp")[,1] 
+scrvar2 = scores(rdout,display="sp")[,2]
+scrvar3 = summary(rdout)$spec.scores[,3]
+scrvar4 = summary(rdout)$spec.scores[,4]
+
+#Make data frame
+library(stringr)
+dfscores<- data.frame(scr1,scr2, scr3, scr4)
+dfscores$fullcode <- row.names(community_matrix)
+dfscores$soil <- str_split_fixed(dfscores$fullcode, "_", 5)[,1]
+dfscores$seed <- str_split_fixed(dfscores$fullcode, "_", 5)[,2]
+dfscores$month <- str_split_fixed(dfscores$fullcode, "_", 5)[,3]
+dfscores$year <- str_split_fixed(dfscores$fullcode, "_", 5)[,4]
+dfscores$pot <- str_split_fixed(dfscores$fullcode, "_", 5)[,5]
+dfscores$month_year <- factor(paste(dfscores$month, dfscores$year, sep = " "))
+dfscores$treatment <- factor(paste(dfscores$soil, dfscores$seed, sep = " "))
+dfscores$date <- dfscores$month_year
+levels(dfscores$date)
+dfscores$date <- revalue(dfscores$date, c("Jul 2007" = "2007-07", "Jul 2008" = "2008-07", "Jul 2009" = "2009-07", "Jul 2010" = "2010-07", "Jul 2011" = "2011-07", "Jul 2012" = "2012-07",
+                                          "Jul 2013" = "2013-07", "Jul 2016" = "2016-07", "Jul 2017" = "2017-07", "Jul 2018" = "2018-07", "Jul 2019" = "2019-07",
+                                          "Sep 2007" = "2007-09", "Sep 2008" = "2008-09", "Sep 2009" = "2009-09", "Sep 2010" = "2010-09", "Sep 2011" = "2011-09"))
+dfscores$date <- as.yearmon(dfscores$date)
+dfscores$treatment_date <- factor(paste(dfscores$treatment, dfscores$date, sep = " "))
+head(dfscores)
+#save(dfscores, file="dfscores_dca.Rda")
+
+#Make data frame for species scores
+dfvar<-data.frame(scrvar1, scrvar2, scrvar3, scrvar4)
+dfvar$abbr <- row.names(dfvar)
+abbr_sown <- unique(Data[,c(10,11)])
+dfvar <- merge(dfvar, abbr_sown, by = c("abbr"), all=T)
+#save(dfvar, file = "dfvar_DCA.RDa")
+
+#Order soil and sown
+dfscores$soil <- factor(dfscores$soil, levels = c("grassland", "abandoned"))
+dfvar$sown <- factor(dfvar$sown, levels=c("yes", "no"))
+
+#DCA 1
+head(dfscores)
+plotD_2 <- ggplot(data=dfscores, aes(x=date, y=scr1, colour = soil))+
+  annotate("rect", fill = "grey", alpha = 0.6, xmin = -Inf, xmax = 2012,ymin = -Inf, ymax = Inf) +
+  geom_hline(yintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+  geom_line(alpha = 0.3, aes(group = pot)) +
+  stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+               fun.args=list(conf.int=0.95), fill="grey50", colour = NA, alpha = 0.5, aes(group = soil))+
+  stat_summary(geom="line", fun=mean, size = 2)+
+  #stat_summary(geom="point", fun.y=mean, color="red") +
+  scale_shape_manual(values=c(16,17,15), name="Density") +
+  scale_colour_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#F0E442", "#CC79A7"), name="Soil")+
+  xlab("Year")+ 
+  ylab("DCA 1 - temporal turnover")+
+  theme_bw() +
+  theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+  theme(axis.title.x=element_blank())+
+  theme(axis.text=element_text(size=10))+
+  theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+  theme(legend.key.size = unit(0.15, "in"))+
+  theme(panel.grid.minor = element_blank())+
+  scale_x_continuous(breaks=c(2007, 2012, 2016, 2019))+
+  theme(panel.grid.major = element_blank())
+
+plotD_2
+
+#DCA2
+plotE_2 <- ggplot(data=dfscores, aes(x=date, y=scr2, colour = soil))+
+  annotate("rect", fill = "grey", alpha = 0.6, xmin = -Inf, xmax = 2012,ymin = -Inf, ymax = Inf) +
+  geom_hline(yintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+  geom_line(alpha = 0.3, aes(group = pot)) +
+  stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+               fun.args=list(conf.int=0.95), fill="grey50", colour = NA, alpha = 0.5, aes(group = soil))+
+  stat_summary(geom="line", fun=mean, size = 2)+
+  #stat_summary(geom="point", fun.y=mean, color="red") +
+  scale_shape_manual(values=c(16,17,15), name="Density") +
+  scale_colour_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#F0E442", "#CC79A7"), name="Soil")+
+  xlab("Year")+ 
+  ylab("DCA 2 - soil resource optima")+
+  theme_bw() +
+  theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+  theme(axis.title.x=element_blank())+
+  theme(axis.text=element_text(size=10))+
+  theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+  theme(legend.key.size = unit(0.15, "in"))+
+  theme(panel.grid.minor = element_blank())+
+  scale_x_continuous(breaks=c(2007, 2012, 2016, 2019))+
+  theme(panel.grid.major = element_blank())
+
+plotE_2
+
+#DCA3
+plotF_2 <- ggplot(data=dfscores, aes(x=date, y=scr3, colour = soil))+
+  annotate("rect", fill = "grey", alpha = 0.6, xmin = -Inf, xmax = 2012,ymin = -Inf, ymax = Inf) +
+  geom_hline(yintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+  geom_line(alpha = 0.3, aes(group = pot)) +
+  stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+               fun.args=list(conf.int=0.95), fill="grey50", colour = NA, alpha = 0.5, aes(group = soil))+
+  stat_summary(geom="line", fun=mean, size = 2)+
+  #stat_summary(geom="point", fun.y=mean, color="red") +
+  scale_shape_manual(values=c(16,17,15), name="Density") +
+  scale_colour_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#F0E442", "#CC79A7"), name="Soil")+
+  xlab("Year")+ 
+  ylab("DCA 3 - legume cover")+
+  theme_bw() +
+  theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+  theme(axis.title.x=element_blank())+
+  theme(axis.text=element_text(size=10))+
+  theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+  theme(legend.key.size = unit(0.15, "in"))+
+  theme(panel.grid.minor = element_blank())+
+  scale_x_continuous(breaks=c(2007, 2012, 2016, 2019))+
+  theme(panel.grid.major = element_blank())
+
+plotF_2
+
+#Save plots
+library(cowplot)
+prowDEF <- plot_grid(plotD_2 + theme(legend.position="none"), plotE_2 + theme(legend.position="none"), plotF_2 + theme(legend.position="none"), 
+                     labels=c("D", "E", "F"), ncol=3, nrow=1, align="hv", label_size=12, vjust=1.1)
+prowDEF
+legend <- get_legend(plotD_2 + theme(legend.box.margin = margin(0, 0, 0, 12)))
+
+prowDEF_l <- plot_grid(prowDEF, legend, ncol = 2, rel_widths = c(2,.4))
+prowDEF_l 
+
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/Fig_DCA_over_time.png", prowDEF_l,
+#          ncol = 2, nrow = 1, base_aspect_ratio = 1.8, dpi=600)
+
+#Together with ABC
+prowAF <- plot_grid(plotA_2 + theme(legend.position="none"), plotB_2 + theme(legend.position="none"), plotC_2 + theme(legend.position="none"), 
+                    plotD_2 + theme(legend.position="none"), plotE_2 + theme(legend.position="none"), plotF_2 + theme(legend.position="none"),
+                    labels=c("A", "B", "C", "D", "E", "F"), ncol=3, nrow=2, align="hv", label_size=12, vjust=1.1)
+prowAF
+
+legend <- get_legend(plotD_2 + theme(legend.box.margin = margin(0, 0, 0, 12)))
+prowAF_l <- plot_grid(prowAF, legend, ncol = 2, rel_widths = c(2,.3))
+prowAF_l 
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/Fig 1_3.png", prowAF_l,
+#          ncol = 1.5, nrow = 1.5, base_aspect_ratio = 1.8, dpi=600) #PC
+
+
+#####2.2 STATISTICS TO DCA PLOTS#####
+head(dfscores)
+library(nlme)
+library(car)
+library(lme4)
+
+Pot_position <- read.table("Pot_position.txt", sep="\t",header=T)
+head(Pot_position)
+dfscores <- merge(dfscores, Pot_position, by = c("pot"))
+dfscores$row <- as.numeric(dfscores$row)
+str(dfscores)
+
+#DCA1
+m1 <- lmer(scr1 ~ soil * scale(date) + (1| pot), data=dfscores) #Inclusion of seed as random effect resulted in singular fit
+qqnorm(resid(m1))
+plot(m1) #U shape
+Anova(m1, type = 3)
+
+#With weighted variance
+vf1 <- varIdent(form = ~ 1 | pot)
+m2 <- lme(scr1 ~ soil * scale(date), random = ~1| pot, data=dfscores, weights = vf1)
+qqnorm(resid(m2))
+plot(m2) #better
+Anova(m2, type = 3)
+
+#DCA2
+m1 <- lmer(scr2 ~ soil * scale(date) + (1| pot) + (1|seed), data=dfscores)
+qqnorm(resid(m1))
+plot(m1) #mmm
+Anova(m1, type = 3)
+
+#With weighted variance
+vf1 <- varIdent(form = ~ 1 | pot)
+m2 <- lme(scr2 ~ soil * scale(date), random = ~1| pot, data=dfscores, weights = vf1)
+qqnorm(resid(m2))
+plot(m2) #better
+Anova(m2, type = 3)
+
+#DCA3
+m1 <- lmer(scr3 ~ soil * scale(date) + (1| pot) + (1|seed), data=dfscores)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#With weighted variance
+vf1 <- varIdent(form = ~ 1 | pot)
+m2 <- lme(scr3 ~ soil * scale(date), random = ~1| pot, data=dfscores, weights = vf1)
+qqnorm(resid(m2))
+plot(m2) #slightly better
+Anova(m2, type = 3)
+
+
+######3 OVERLAY ELLENBERG VALUES ONTO DCA SCORES#####
+#Merge scores to Comm
+head(dfvar)
+
+#Calculate species average number of years it was present
+period_presence <- list()
+for (sp in levels(factor(Data$abbr))) {
+  for (i in levels(factor(Data$code))) {
+    sub <- Data[which(Data$abbr == sp & Data$code == i & Data$month == "Jul"),]
+    period_presence[[paste(sp, i, sep="_")]] <- mean(sub$year[sub$prop > 0])
+    
+  }
+}
+
+period_presence
+period_presence <- melt(period_presence)
+colnames(period_presence) <- c("period", "abbr_code")
+period_presence$abbr <- str_split_fixed(period_presence$abbr_code, n=2, "_")[,1]
+period_presence$code <- str_split_fixed(period_presence$abbr_code, n=2, "_")[,2]
+
+#Average per species
+Mpresence_sp <- ddply(period_presence, c("abbr"), summarise,
+                      mperiod_sp = mean(period, na.rm=TRUE)
+)
+
+Mpresence_sp
+
+#Add to species scores
+head(dfvar)
+dfvar <- merge(dfvar, Mpresence_sp, by = c("abbr"), all = T)
+qqnorm(dfvar$mperiod_sp)
+
+#Make list with species
+head(Data)
+Specieslist <- unique(Data[, c(9:10)])
+Specieslist <- Specieslist[which (!Specieslist$abbr %in% c("Antra", "Carfl", "Linca")),]
+str(Specieslist)
+Specieslist$Species <- revalue(Specieslist$Species, c("Taraxacum officinalis" = "Taraxacum sect.", "Bromus mollis" = "Bromus hordeaceus", "Helianthemum grandiflorum" = "Helianthemum nummularium",
+                                                      "Trifolium pratensis" = "Trifolium pratense"))
+
+#Add Czech Ellenberg values
+Ellenberg <- read.table("Czech_Ellenberg.txt", sep="\t",header=T)
+head(Ellenberg)
+Ellenberg_sub <- Ellenberg[match(Specieslist$Species, Ellenberg$Plant.species),]
+
+#Merge with dfvar
+head(dfvar)
+#dfvar_tosave <- dfvar
+#dfvar <- dfvar_tosave
+dfvar <- merge(dfvar, Specieslist, by = c("abbr"), all = T)
+colnames(dfvar)[8] <- "Plant.species"
+dfvar <- merge(dfvar, Ellenberg_sub, by = c("Plant.species"), all = T)
+
+#Add functional group to dfvar
+colnames(dfvar)
+dfvar$functional_group <- factor(dfvar$abbr)
+
+#Delete dfvar rows without any scores
+dfvar <- dfvar[which(!is.na(dfvar$scrvar1)),]
+dfvar$functional_group
+dfvar$functional_group <- revalue(dfvar$functional_group, c("Agreu"="forb", "Agrsp"="grass", "Antvu"="legume", "Astci"="legume", "Astgl"="legume",
+                                  "Brapi"="grass", "Broer"="grass", "Bromo"="grass", "Bupfa"="forb", 
+                                  "Calep"="grass", "Camge"="forb", "Camgl"="forb", "Carto"="sedge", "Cenja"="forb", 
+                                  "Censc"="forb", "Cerho"="forb", "Cirpa"="forb", "Consp"="forb", "Corvr"="legume",
+                                  "Dauca"="forb", "Episp"="forb", "Erian"="forb", "Galsp"="forb", "Gersi"="forb",
+                                  "Helgr"="forb", "Hiesp"="forb", "Hyppe"="forb", "Inuhi"="forb", "Inusa"="forb", 
+                                  "Lacse"="forb", "Leohi"="forb", "Linfl"="woody", "Linte"="woody", "Lotco"="legume",
+                                  "Medfa"="legume", "Plame"="forb", "Poaan"="grass", "Poatr"="grass", 
+                                  "Prive"="forb", "Prugr"="forb", "Salpr"="forb", "Salve"="forb", "Sanmi"="forb",
+                                  "Scaoc"="forb", "Silvu"="forb", "Solca"="forb", "Sonsp"="forb", "Stare"="forb",
+                                  "Tanco"="forb", "Tarof"="forb", "Teuch"="forb", "Thypu"="woody", "Trime"="legume", 
+                                  "Trimo"="legume", "Tripr"="legume", "Trire"="legume", "Urtdi"="forb", 
+                                  "Verteu"="forb", "Vicsp"="legume"))
+
+#Calculate envfit
+head(dfvar) #Perhaps not: log(Dispersal_unit_DM), 
+env_12 <- envfit(dfvar_Ellen[, c(3,4)] ~ mperiod_sp + N.CZ + M.CZ + R.CZ, data = dfvar_Ellen, perm = 999, na.rm = T)
+env_12
+temp1 <- scores(env_12, display="vectors")[,1]
+temp2 <- scores(env_12, display="vectors")[,2]
+scr_12 <- data.frame(temp1, temp2)
+
+DEF <- 5
+
+library(ggrepel)
+
+plotSA <- ggplot()+
+  theme_bw() +
+  geom_hline(yintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+  geom_vline(xintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+  geom_segment(data=scr_12, aes(x=0, y=0, xend=temp1*DEF, yend=temp2*DEF),
+               size=0.6, arrow=arrow(length=unit(0.03, "npc")), show.legend=FALSE, colour = "darkgrey")+
+  geom_text_repel(data=dfvar[,c(2:7)],aes(x = scrvar1, y = scrvar2, label = abbr, colour = sown), size = 2.5, max.overlaps = 18)+
+  scale_colour_manual(values=c("black", "red", "blue", "pink", "green", "pink", "black", "black"), name="Sown", na.translate = F)+
+  annotate("text", x=scr_12$temp1*DEF, y=scr_12$temp2*DEF, label=c("", "Soil nutrients", "Soil moisture", ""), 
+           size=3.5, hjust=0.8, vjust=-0.3, colour = "darkgrey")+
+  annotate("text", x=scr_12$temp1*DEF, y=scr_12$temp2*DEF, label=c("Time", "", "", ""), 
+           size=3.5, hjust=0.3, vjust=1.5, colour = "darkgrey")+
+  annotate("text", x=scr_12$temp1*DEF, y=scr_12$temp2*DEF, label=c("", "", "", "Soil reaction"), 
+           size=3.5, hjust=0.7, vjust=1.2, colour = "darkgrey")+
+  xlab("DCA 1")+ 
+  ylab("DCA 2")+
+  theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+  theme(axis.title.x=element_text(size=11, colour = "black", margin=(margin(10,0,0,0))))+
+  theme(axis.text=element_text(size=10))+
+  theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+  theme(legend.key.size = unit(0.15, "in"))+
+  theme(panel.grid.minor = element_blank())+
+  theme(panel.grid.major = element_blank())
+
+plotSA
+
+#Calculate hull per functional_group
+hull_data_B <- 
+  dfvar[,c(2:7,20)] %>%
+  drop_na() %>%
+  group_by(functional_group) %>% 
+  slice(chull(scrvar1, scrvar3))
+
+#PlotB
+plotSB <- ggplot()+
+  theme_bw() +
+  geom_hline(yintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+  geom_vline(xintercept=0, linetype="longdash", colour="darkgrey", size=0.4)+
+  geom_polygon(data = hull_data_B,
+               aes(x = scrvar1, y = scrvar3, fill = functional_group,
+                   colour = functional_group),
+               alpha = 0.2,
+               show.legend = FALSE, size = 0.1) +
+  geom_text_repel(data=dfvar[,c(2:7,20)],aes(x = scrvar1, y = scrvar3, label = abbr, colour = functional_group), size = 2.5, max.overlaps = 18)+
+  scale_colour_manual(values=c("#999999", "#56B4E9", "#E69F00", "#009E73", "#0072B2", "#D55E00", "#CC79A7"), name="Functional \ngroup", na.translate = F)+
+  scale_fill_manual(values=c("#999999", "#56B4E9", "#E69F00", "#009E73", "#0072B2", "#D55E00", "#CC79A7"), name="Sown", na.translate = F)+
+  xlab("DCA 1")+ 
+  ylab("DCA 3")+
+  theme(axis.title.y=element_text(size=11, colour = "black", margin=(margin(0,10,0,0))))+
+  theme(axis.title.x=element_text(size=11, colour = "black", margin=(margin(10,0,0,0))))+
+  theme(axis.text=element_text(size=10))+
+  theme(legend.text = element_text(size = 10), legend.title = element_text(size=10))+
+  theme(legend.key.size = unit(0.15, "in"))+
+  theme(panel.grid.minor = element_blank())+
+  theme(panel.grid.major = element_blank())
+
+plotSB
+#DCA3
+
+#Save plots
+library(cowplot)
+prowSAB <- plot_grid(plotSA, plotSB, 
+                     labels=c("A", "B"), ncol=2, nrow=1, align="hv", label_size=12, vjust=1.1)
+prowSAB
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/Fig S1_3.png", prowSAB,
+#         ncol = 2, nrow = 1, base_aspect_ratio = 1.4, dpi=600) #PC
