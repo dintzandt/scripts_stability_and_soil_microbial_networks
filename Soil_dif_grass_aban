@@ -1,0 +1,175 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R") #PC
+
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(plyr)
+library(stringr)
+library(vegan)
+library(tidyr)
+library("QuantPsyc")
+
+#Load data
+load("Soil_2.Rda")
+head(Soil)
+PLFA <- read.table("PLFA.txt", sep="\t",header=T)
+head(PLFA)
+PLFA$funbacratio <- PLFA$fun / PLFA$bac
+colnames(PLFA) <- c("code", "soil", "seed_density", "rep", "fungi", "bac", "actinobac", "Gplus", "Gmin", "micbio", "AMF", "funbacratio")
+Data_soil <- merge(Soil, PLFA, by = c("code", "soil", "seed_density", "rep"))
+head(Data_soil)
+
+#Wide to long format
+colnames(Data_soil)
+sub <- Data_soil[,c(2,7:10, 15:16, 20, 22, 24, 27, 29, 30, 31, 36)]
+temp <- melt(sub, id = c("soil"))
+temp$soil <- factor(temp$soil, levels = c("grassland", "abandoned"))
+temp$variable <- factor(temp$variable, levels = c("soil_N", "NO3", "NH4", "NO2", "soil_C_org", "soil_C", "soil_P", "soil_pH_KCl", "root_DW", "bac", "fungi", "AMF", 
+                                                  "Shannon_16S", "Shannon_ITS"))
+temp$label <- factor(temp$variable, levels = c("soil_N", "NO3", "NH4", "NO2", "soil_C_org", "soil_C", "soil_P", "soil_pH_KCl", "root_DW", "bac", "fungi", "AMF", 
+                                               "Shannon_16S", "Shannon_ITS"))
+temp$label <- revalue(temp$label, c("soil_N"="total N", "NO3"="NO3", "NH4"="NH4", "NO2"="NO2", "soil_C_org"="organic C", "soil_C"="total C", "soil_P"="total P", "soil_pH_KCl"="pH", 
+                                    "root_DW"="root biomass", "bac"="bacteria", "fungi"="fungi", "AMF"="AMF",
+                                    "Shannon_16S"="diversity 16S", "Shannon_ITS"="diversity ITS"))
+head(temp)
+
+#Panel figure
+plot <- ggplot(data=temp, aes(x=soil, y=value, fill=soil))+
+  #annotate("rect", fill = "grey", alpha = 0.6, xmin = -Inf, xmax = 2012,ymin = -Inf, ymax = Inf) +
+  facet_wrap(~ label, scale="free", ncol=7) +
+  geom_jitter(position=position_jitter(width=0.3, height=0.2), aes(colour=soil, alpha=0.9), show.legend = F) +
+  #geom_smooth(method="lm", se=T, colour="black", data=subset(MeanMay17, meaninside>0 & speciesfull %in% c("Achillea", "Agrostis", "Veronica"))) +
+  #geom_errorbar(data=MYear19, aes(ymin = MYear19$mean-MYear19$se, ymax = MYear19$mean+MYear19$se), width=.4, colour="grey", position=position_dodge(.9), size = 0.5)+
+  #geom_bar(stat="identity", position=position_dodge())+
+  #geom_line(size = 1, aes(colour=seed_density)) +
+  #geom_point(size=2, aes(colour=seed_density)) +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+  scale_colour_manual(values=c("#009E73","#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#CC79A7", "black"), name="Soil")+
+  scale_fill_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#CC79A7"), name="Soil")+
+  #xlab("Soil")+ 
+  #ylab("pH")+
+  #ggtitle("Total soil carbon") +
+  theme_bw() +
+  theme(axis.title.y=element_blank())+
+  theme(axis.title.x=element_blank())+
+  theme(axis.text=element_text(size=10))+
+  theme(axis.text.x=element_blank())+
+  theme(panel.grid.minor = element_blank())+
+  theme(panel.grid.major = element_blank())+
+  #coord_cartesian(ylim = c(7,9))+
+  theme(strip.text.x=element_text(size=10), strip.background=element_rect(fill="grey"))
+plot
+
+#Save
+library(cowplot)
+prow <- plot_grid(plot, labels=c(""), align="hv", label_size=12, vjust=1.1)
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigS_soil_3.png", prow,
+#          ncol = 3, nrow = 1, base_aspect_ratio = 1, dpi=600) #PC
+
+#Statistics
+#####3.1.2 Stats to figure#####
+head(Data_soil)
+library(nlme)
+library(car)
+library(lme4)
+
+Pot_position <- read.table("Pot_position.txt", sep="\t",header=T)
+head(Pot_position)
+colnames(Pot_position) <- c("code", "row", "column")
+Data_soil <- merge(Data_soil, Pot_position, by = c("code"))
+
+#Linear mixed effects models
+head(Data_soil)
+
+#Set varIdent in case needed
+vf <- varIdent(form = ~ 1 | soil)
+
+#total N
+m1 <- lme(log(soil_N) ~ soil, random = ~ 1| seed_density, weights = vf, data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#NO3
+m1 <- lmer(log(NO3) ~ soil + (1| seed_density), data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#NH4
+m1 <- lmer(log(NH4) ~ soil + (1| seed_density), data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#NO2
+m1 <- lmer(log(NO2) ~ soil + (1| seed_density), data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#Organic C
+m1 <- lme(soil_C_org ~ soil, random = ~ 1| seed_density, weights = vf, data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#total C
+m1 <- lme(soil_C ~ soil, random = ~ 1| seed_density, weights = vf, data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#total P
+m1 <- lme(log(soil_P) ~ soil, random = ~ 1| seed_density, weights = vf, data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#soil pH
+m1 <- lme(soil_pH_KCl ~ soil, random = ~ 1| seed_density, weights = vf, data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#root biomass
+m1 <- lmer(log(root_DW) ~ soil + (1| seed_density), data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#bacterial biomass
+m1 <- lme(bac ~ soil, random = ~ 1| seed_density, weights = vf, data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#fungal biomass
+m1 <- lme(log(fungi) ~ soil, random = ~ 1| seed_density, weights = vf, data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#AMF biomass
+m1 <- lme(AMF ~ soil, random = ~ 1| seed_density, weights = vf, data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#Diversity 16S
+m1 <- lme(Shannon_16S ~ soil, random = ~ 1| seed_density, data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#Diversity ITS
+m1 <- lme(Shannon_ITS ~ soil, random = ~ 1| seed_density, data=Data_soil)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3)
+
+#*** soil N, soil_K, NH4, organic C, pH, bac, fungi, AMF, Shannon 16S
+#** NO3
+#* Shannon ITS
