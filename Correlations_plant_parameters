@@ -1,0 +1,263 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R") #PC
+
+library(ggplot2)
+library(zoo)
+library("QuantPsyc")
+library(reshape2)
+library(stringr)
+library(nlme)
+library(car)
+library(tidyr)
+library(igraph)
+
+#Load data
+load("Comm_Dev_Para.RDa")
+head(Comm_Dev_Para)
+load("Comm_2.Rda")
+head(Comm)
+load("dfscores_DCA.RDa")
+head(dfscores)
+
+#Add replicate number
+dfscores$rep <- readr::parse_number(dfscores$pot)
+Comm$rep <- readr::parse_number(Comm$code)
+
+#Change seed_density
+colnames(Comm)[4] <- c("seed")
+
+#Subset for only 2019
+Comm_2019 <- Comm[which(Comm$year == "2019"),]
+dfscores_2019 <- dfscores[which(dfscores$year == "2019"),]
+
+#Merge to developmental parameters
+temp <- merge(Comm_Dev_Para, Comm_2019, by = c("soil", "seed", "rep"), all = T)
+temp2 <- merge(temp, dfscores_2019, by = c("soil", "seed", "rep", "month", "year", "date", "month_year"), all = T)
+head(temp2)
+DCA_Comm <- temp2
+
+#Grassland
+head(DCA_Comm)
+sub_grass <- DCA_Comm[which(DCA_Comm$soil == "grassland"),]
+
+#Check whether we need to transform
+#Plant parameters
+qqnorm(sub_grass$scr1_ef)
+qqnorm(sub_grass$scr2_ef)
+qqnorm(sub_grass$scr3_ef)
+qqnorm(sub_grass$totbio_ef)
+qqnorm(sub_grass$div_ef_1yr)
+qqnorm(sub_grass$div_ef_2yr)
+qqnorm(sub_grass$scr1_trend)
+qqnorm(sub_grass$scr2_trend)
+qqnorm(log(sub_grass$scr2_trend+1)) #yes
+qqnorm(sub_grass$scr3_trend)
+qqnorm(sub_grass$scr3_trend^2) #yes
+qqnorm(sub_grass$totbio_trend)
+qqnorm(sub_grass$div_trend)
+qqnorm(sqrt(sub_grass$div_trend+1)) #yes
+qqnorm(sub_grass$scr1)
+qqnorm(sub_grass$scr2)
+qqnorm(sub_grass$scr3)
+qqnorm(sub_grass$total_biomass)
+qqnorm(log(sub_grass$total_biomass)) #yes
+qqnorm(sub_grass$diversity)
+
+#Loop
+p.value <-list()
+R2.value <- list()
+
+pdf(file="fit_correlations_lme_plant_grass.pdf", width = 16 , height = 10)
+par(mfrow=c(4,6))
+
+for (i in c("scr1_ef", "scr2_ef", "scr3_ef", "totbio_ef", "div_ef_2yr",
+            "scr1_trend", "tscr2_trend", "tscr3_trend", "totbio_trend", "tdiv_trend",
+            "scr1", "scr2", "scr3", "ttotal_biomass", "diversity")) {
+  for (j in c("scr1_ef", "scr2_ef", "scr3_ef", "totbio_ef", "div_ef_2yr",
+              "scr1_trend", "tscr2_trend", "tscr3_trend", "totbio_trend", "tdiv_trend",
+              "scr1", "scr2", "scr3", "ttotal_biomass", "diversity")) {
+    tryCatch({
+      
+      tmp <- sub_grass[, c(i, j, "seed")]
+      variabley <- tmp[,1]
+      variablex <- tmp[,2]
+      fit <- lme(variabley ~ variablex, random = ~1|seed, data = tmp, na.action=na.omit)
+      p.value[[paste(i,j, sep = "_")]] <- Anova(fit, type=3)[2,3]
+      R2.value[[paste(i,j, sep = "_")]] <- extract_numeric(performance::r2(fit)$R2_marginal)
+      
+      qqnorm(resid(fit), pch=19, main=paste(i,j))
+      plot(resid(fit) ~ fitted(fit), pch=19, main=paste(i,j))
+      
+    }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")},
+    p.value[[paste(i,j, sep = "_")]] <- NA,
+    R2.value[[paste(i,j, sep = "_")]] <- NA)
+  }
+}
+
+dev.off()
+
+p.value
+R2.value #first factor is the y, second the x in the lme
+#Some residual patterns that need consideration in the actual SEM
+
+#To matrix
+M <- cor(cbind(sub_grass$scr1_ef, sub_grass$scr2_ef, sub_grass$scr3_ef, sub_grass$totbio_ef, sub_grass$div_ef_2yr,
+               sub_grass$scr1_trend, sub_grass$tscr2_trend, sub_grass$tscr3_trend, sub_grass$totbio_trend, sub_grass$tdiv_trend,
+               sub_grass$scr1, sub_grass$scr2, sub_grass$scr3, sub_grass$ttotal_biomass, sub_grass$diversity), use = "pairwise.complete.obs")
+
+tmp_p <- melt(p.value)
+tmp_R2 <- melt(R2.value)
+m_p <- matrix(tmp_p$value, nrow=15, ncol=15, byrow=T)
+m_R2 <- matrix(tmp_R2$value, nrow=15, ncol=15, byrow=T) * sign(M)
+colnames(m_p) <- c("scr1.ef", "scr2.ef", "scr3.ef", "AP.ef", "div.ef",
+                   "scr1.traj", "scr2.traj", "scr3.traj", "AP.traj", "div.traj",
+                   "scr1", "scr2", "scr3", "AP", "div")
+rownames(m_p) <- c("scr1.ef", "scr2.ef", "scr3.ef", "AP.ef", "div.ef",
+                   "scr1.traj", "scr2.traj", "scr3.traj", "AP.traj", "div.traj",
+                   "scr1", "scr2", "scr3", "AP", "div")
+colnames(m_R2) <- c("scr1.ef", "scr2.ef", "scr3.ef", "AP.ef", "div.ef",
+                    "scr1.traj", "scr2.traj", "scr3.traj", "AP.traj", "div.traj",
+                    "scr1", "scr2", "scr3", "AP", "div")
+rownames(m_R2) <- c("scr1.ef", "scr2.ef", "scr3.ef", "AP.ef", "div.ef",
+                    "scr1.traj", "scr2.traj", "scr3.traj", "AP.traj", "div.traj",
+                    "scr1", "scr2", "scr3", "AP", "div")
+
+#To network graph
+m_R2[m_p>0.003571429] <- 0 #0.05/14=0.003571429
+network <- graph_from_adjacency_matrix(m_R2, weighted=T, mode="upper", diag=F)
+E(network)$color[E(network)$weight > 0]<-"#0072B2" #now color the edges based on their values positive is steelblue
+E(network)$color[E(network)$weight < 0]<-"#D55E00"  #now color the edges based on their values
+am.coord <- layout_in_circle(network)
+par(mar = c(0.1, 0.1, 0.1, 0.1))   
+radian.rescale <- function(x, start=0, direction=1) {
+  c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+  c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
+n <- 15
+lab.locs <- radian.rescale(x=1:n, direction=-1, start=0)
+
+plot(network, vertex.size = 13, edge.width=abs(E(network)$weight)*10, edge.curved=.1, layout = am.coord,
+     vertex.color = "white", vertex.frame.color = "white", vertex.label.font=1, 
+     vertex.label.dist=0.5,  vertex.label.cex=c(0.7), vertex.label.color="black", vertex.label.degree=lab.locs)
+p <- recordPlot()
+prow <- plot_grid(p, labels=c("A"), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigSX_plant_corr_grass.png", prow,
+#          ncol = 1.2, nrow = 1.2, base_aspect_ratio = 1, dpi=600) #PC
+
+
+#Abandoned
+sub_aban <- DCA_Comm[which(DCA_Comm$soil == "abandoned"),]
+
+#Check whether we need to transform
+#Plant parameters
+qqnorm(sub_aban$scr1_ef)
+qqnorm(sub_aban$scr2_ef)
+qqnorm(sub_aban$scr3_ef)
+qqnorm(sub_aban$totbio_ef)
+qqnorm(sub_aban$div_ef_2yr)
+qqnorm(sub_aban$scr1_trend)
+qqnorm(sub_aban$scr1_trend^2) #yes
+qqnorm(sub_aban$scr2_trend)
+qqnorm(log(sub_aban$scr2_trend+1)) #yes
+qqnorm(sub_aban$scr3_trend)
+qqnorm(sub_aban$scr3_trend^2) #yes
+qqnorm(sub_aban$totbio_trend)
+qqnorm(sub_aban$div_trend)
+qqnorm(sqrt(sub_aban$div_trend+1)) #yes
+qqnorm(sub_aban$scr1)
+qqnorm(sub_aban$scr2)
+qqnorm(sub_aban$scr3)
+qqnorm(sub_aban$total_biomass)
+qqnorm(log(sub_aban$total_biomass)) #yes
+qqnorm(sub_aban$diversity)
+
+#Add transformations
+sub_aban$tscr1_trend <- sub_aban$scr1_trend^2
+sub_aban$tscr2_trend <- log(sub_aban$scr2_trend+1)
+sub_aban$tscr3_trend <- sub_aban$scr3_trend^2
+sub_aban$tdiv_trend <- sqrt(sub_aban$div_trend+1)
+sub_aban$ttotal_biomass <- log(sub_aban$total_biomass)
+
+#Loop
+p.value <-list()
+R2.value <- list()
+
+pdf(file="fit_correlations_lme_plant_aban.pdf", width = 16 , height = 10)
+par(mfrow=c(4,6))
+
+for (i in c("tscr1_ef", "scr2_ef", "scr3_ef", "totbio_ef", "div_ef_2yr",
+            "scr1_trend", "tscr2_trend", "tscr3_trend", "totbio_trend", "tdiv_trend",
+            "scr1", "scr2", "scr3", "ttotal_biomass", "diversity")) {
+  for (j in c("tscr1_ef", "scr2_ef", "scr3_ef", "totbio_ef", "div_ef_2yr",
+              "scr1_trend", "tscr2_trend", "tscr3_trend", "totbio_trend", "tdiv_trend",
+              "scr1", "scr2", "scr3", "ttotal_biomass", "diversity")) {
+    tryCatch({
+      
+      tmp <- sub_aban[, c(i, j, "seed")]
+      variabley <- tmp[,1]
+      variablex <- tmp[,2]
+      fit <- lme(variabley ~ variablex, random = ~1|seed, data = tmp, na.action=na.omit)
+      p.value[[paste(i,j, sep = "_")]] <- Anova(fit, type=3)[2,3]
+      R2.value[[paste(i,j, sep = "_")]] <- extract_numeric(performance::r2(fit)$R2_marginal)
+      
+      qqnorm(resid(fit), pch=19, main=paste(i,j))
+      plot(resid(fit) ~ fitted(fit), pch=19, main=paste(i,j))
+      
+    }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")},
+    p.value[[paste(i,j, sep = "_")]] <- NA,
+    R2.value[[paste(i,j, sep = "_")]] <- NA)
+  }
+}
+
+dev.off()
+
+p.value
+R2.value #first factor is the y, second the x in the lme
+#Some residual patterns that need consideration in the actual SEM
+
+#To matrix
+M <- cor(cbind(sub_aban$scr1_ef, sub_aban$scr2_ef, sub_aban$scr3_ef, sub_aban$totbio_ef, sub_aban$div_ef_2yr,
+               sub_aban$tscr1_trend, sub_aban$tscr2_trend, sub_aban$tscr3_trend, sub_aban$totbio_trend, sub_aban$tdiv_trend,
+               sub_aban$scr1, sub_aban$scr2, sub_aban$scr3, sub_aban$ttotal_biomass, sub_aban$diversity), use = "pairwise.complete.obs")
+
+tmp_p <- melt(p.value)
+tmp_R2 <- melt(R2.value)
+m_p <- matrix(tmp_p$value, nrow=15, ncol=15, byrow=T)
+m_R2 <- matrix(tmp_R2$value, nrow=15, ncol=15, byrow=T) * sign(M)
+colnames(m_p) <- c("scr1.ef", "scr2.ef", "scr3.ef", "AP.ef", "div.ef",
+                   "scr1.traj", "scr2.traj", "scr3.traj", "AP.traj", "div.traj",
+                   "scr1", "scr2", "scr3", "AP", "div")
+rownames(m_p) <- c("scr1.ef", "scr2.ef", "scr3.ef", "AP.ef", "div.ef",
+                   "scr1.traj", "scr2.traj", "scr3.traj", "AP.traj", "div.traj",
+                   "scr1", "scr2", "scr3", "AP", "div")
+colnames(m_R2) <- c("scr1.ef", "scr2.ef", "scr3.ef", "AP.ef", "div.ef",
+                    "scr1.traj", "scr2.traj", "scr3.traj", "AP.traj", "div.traj",
+                    "scr1", "scr2", "scr3", "AP", "div")
+rownames(m_R2) <- c("scr1.ef", "scr2.ef", "scr3.ef", "AP.ef", "div.ef",
+                    "scr1.traj", "scr2.traj", "scr3.traj", "AP.traj", "div.traj",
+                    "scr1", "scr2", "scr3", "AP", "div")
+
+#To network graph
+m_R2[m_p>0.003571429] <- 0 #0.05/14=0.003571429
+network <- graph_from_adjacency_matrix(m_R2, weighted=T, mode="upper", diag=F)
+E(network)$color[E(network)$weight > 0]<-"#0072B2" #now color the edges based on their values positive is steelblue
+E(network)$color[E(network)$weight < 0]<-"#D55E00"  #now color the edges based on their values
+am.coord <- layout_in_circle(network)
+par(mar = c(0.1, 0.1, 0.1, 0.1))   
+radian.rescale <- function(x, start=0, direction=1) {
+  c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+  c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
+n <- 15
+lab.locs <- radian.rescale(x=1:n, direction=-1, start=0)
+
+plot(network, vertex.size = 13, edge.width=abs(E(network)$weight)*10, edge.curved=.1, layout = am.coord,
+     vertex.color = "white", vertex.frame.color = "white", vertex.label.font=1, 
+     vertex.label.dist=0.5,  vertex.label.cex=c(0.7), vertex.label.color="black", vertex.label.degree=lab.locs)
+p <- recordPlot()
+prow <- plot_grid(p, labels=c("B"), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigSX_plant_corr_aban.png", prow,
+#ncol = 1.2, nrow = 1.2, base_aspect_ratio = 1, dpi=600) #PC
