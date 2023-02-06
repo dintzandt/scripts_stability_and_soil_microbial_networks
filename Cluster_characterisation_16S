@@ -21,6 +21,8 @@ library(sjstats)
 
 load("Count_grass_16S.RDa")
 load("Count_aban_16S.RDa")
+load("MData_grass_cluster_16S.RDa")
+load("MData_aban_cluster_16S.RDa")
 
 #################################0 BASIC PLOTS WITH REL ABUNDANCE PER CLUSTER######################################
 head(Count_grass)
@@ -346,3 +348,107 @@ library(cowplot)
 prow <- plot_grid(plotA, labels=c("A"), align="hv", label_size=12, vjust=1.1)
 #save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigS_lnGAR_prokaryotes.png", prow,
 #          ncol = 2, nrow = 1, base_aspect_ratio = 1.2, dpi=600) #PC
+
+############################################C CORRELOGRAMS############################################
+#####BETWEEN CLUSTERS#####
+#Make df with clusters are separate columns
+#Natural grassland
+temp1 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 1),]
+temp2 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 2),]
+temp3 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 3),]
+temp4 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 4),]
+temp5 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 5),]
+temp6 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 6),]
+temp7 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 7),]
+temp8 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 8),]
+temp9 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 9),]
+#temp10 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 10),]
+Mcluster_grass <- cbind(temp1, temp2$mrelreads, temp3$mrelreads, temp4$mrelreads, temp5$mrelreads, 
+                        temp6$mrelreads, temp7$mrelreads, temp8$mrelreads, temp9$mrelreads)
+colnames(Mcluster_grass)[93:101] <- c("c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9")
+
+#Correlaogram among clusters and totread
+M <- cor(cbind(Mcluster_grass$c1, Mcluster_grass$c2, Mcluster_grass$c3, Mcluster_grass$c4, Mcluster_grass$c5,
+               Mcluster_grass$c6, Mcluster_grass$c7, Mcluster_grass$c8, Mcluster_grass$c9),use="p")
+
+#Networkplot with significances
+#To check significances
+Mcluster_grass$seed_density <- factor(Mcluster_grass$seed_density)
+
+#Transform clusters
+Mcluster_grass$c1_log <-log(Mcluster_grass$c1)
+Mcluster_grass$c3_log <-log(Mcluster_grass$c3)
+Mcluster_grass$c4_log <-log(Mcluster_grass$c4)
+Mcluster_grass$c5_log <-log(Mcluster_grass$c5)
+Mcluster_grass$c6_log <-log(Mcluster_grass$c6)
+Mcluster_grass$c8_log <-log(Mcluster_grass$c8+0.001)
+Mcluster_grass$c9_log <-log(Mcluster_grass$c9+0.001)
+
+Mcluster_grass_16S <- Mcluster_grass
+#save(Mcluster_grass_16S, file = "Mcluster_grass_16S_2.0.RDa")
+
+#Loop
+p.value <-list()
+R2.value <- list()
+for (i in c("c1_log", "c2", "c3_log", "c4_log", "c5_log", "c6_log", "c7", "c8_log", "c9_log")) {
+  for (j in c("c1_log", "c2", "c3_log", "c4_log", "c5_log", "c6_log", "c7", "c8_log", "c9_log")) {
+    tryCatch({
+      
+      tmp <- Mcluster_grass[, c(i, j, "seed_density")]
+      variabley <- tmp[,1]
+      variablex <- tmp[,2]
+      fit <- lme(variabley ~ variablex, random = ~1|seed_density, data = tmp)
+      p.value[[paste(i,j, sep = "_")]] <- Anova(fit, type=3)[2,3]
+      R2.value[[paste(i,j, sep = "_")]] <- extract_numeric(performance::r2(fit)$R2_marginal)
+      
+    }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")},
+    p.value[[paste(i,j, sep = "_")]] <- NA,
+    R2.value[[paste(i,j, sep = "_")]] <- NA)
+  }
+}
+
+p.value
+R2.value
+
+#To matrix
+tmp_p <- melt(p.value)
+tmp_R2 <- melt(R2.value)
+m_p <- matrix(tmp_p$value, nrow=9, ncol=9, byrow=T)
+m_R2 <- matrix(tmp_R2$value, nrow=9, ncol=9, byrow=T) * sign(M)
+diag(m_p) <- NA
+diag(m_R2) <- NA
+colnames(m_p) <- c("c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9")
+rownames(m_p) <- c("c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9")
+colnames(m_R2) <- c("c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9")
+rownames(m_R2) <- c("c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9")
+
+#To network graph
+m_R2[m_p>0.05] <- 0
+#save(m_R2, file = "m_R2_16S_natural.RDa")
+network <- graph_from_adjacency_matrix(m_R2, weighted=T, mode="undirected", diag=F)
+SCount_grass <- ddply(Count_grass, c("sample", "cluster.grass"), summarise,
+                      srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_grass, c("cluster.grass"), summarise,
+               mrelreads = mean(srelreads, na.rm=TRUE))
+vsize <- vsize[1:9,]$mrelreads
+vsize_grass_16S <- vsize
+#save(vsize_grass_16S, file="vsize_grass_16S.RDa")
+E(network)[weight > 0]$color<-"#0072B2" #now color the edges based on their values positive is steelblue
+E(network)[weight < 0]$color<-"#D55E00"  #now color the edges based on their values
+am.coord <- layout_in_circle(network)
+par(mar = c(0.1, 0.1, 0.1, 0.1))   
+radian.rescale <- function(x, start=0, direction=1) {
+c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
+n <- 9
+lab.locs <- radian.rescale(x=1:n, direction=-1, start=0)
+    
+plot(network, vertex.size = vsize*2, edge.width=abs(E(network)$weight)*10, edge.curved=.1, layout = am.coord,
+      vertex.color = "grey", vertex.frame.color = "white", vertex.label.font=2, vertex.label=c(1:9), 
+      vertex.label.dist=2,  vertex.label.color="black", vertex.label.degree=lab.locs)
+p <- recordPlot()
+prow <- plot_grid(p, labels=c("C"), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("E:/Prague/1. Dry grassland development/MS/Figures/FigX_Clusters_16S_grass.png", prow,
+#          ncol = 0.5, nrow = 0.5, base_aspect_ratio = 1, dpi=600)
