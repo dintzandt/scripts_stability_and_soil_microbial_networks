@@ -1,0 +1,252 @@
+rm(list=ls())
+getwd()
+
+#Set wd
+setwd("C:/Users/dzandt/Desktop/Skopky_microbiome/Network_robustness")
+
+#Load packages
+library(microbiome) # data analysis and visualisation
+library(phyloseq) # also the basis of data object. Data analysis and visualisation
+library(RColorBrewer) # nice color options
+library(ggpubr) # publication quality figures, based on ggplot2
+library(dplyr) # data handling
+library(SpiecEasi) # Network analysis for sparse compositional data  
+library(network)
+library(intergraph)
+#devtools::install_github("briatte/ggnet")
+library(ggnet)
+library(igraph)
+library(microbiomeutilities)
+library(pulsar)
+library(tidyverse)
+
+#Data
+load("ps1.grass_prune.Rda")
+load("ps1.aban_prune.Rda")
+
+#Load networks
+load("net.grass.mb.fun.100_5_r999_lam20.Rda")
+load("net.aban.mb.fun.100_5_r999_lam20.Rda")
+
+#Create igraph objects without edge weights
+ig.mb.grass     <- adj2igraph(getRefit(net.grass.mb ))
+ig.mb.aban     <- adj2igraph(getRefit(net.aban.mb ))
+
+#Create igraph objects with edge weights
+#Extract edge weights
+grass_temp <- symBeta(getOptBeta(net.grass.mb), mode="maxabs")
+grass_weight <- Matrix::summary(t(grass_temp))[,3]
+aban_temp <- symBeta(getOptBeta(net.aban.mb), mode="maxabs")
+aban_weight <- Matrix::summary(t(aban_temp))[,3]
+
+ig2.mb.grass <- adj2igraph(getRefit(net.grass.mb),diag=TRUE,
+                           edge.attr=list(weight=grass_weight), vertex.attr=list(name=taxa_names(ps1.grass)))
+ig2.mb.aban <- adj2igraph(getRefit(net.aban.mb),diag=TRUE,
+                          edge.attr=list(weight=aban_weight), vertex.attr=list(name=taxa_names(ps1.aban)))
+
+#Null model comparison
+#install.packages("robin")
+library(robin) #for the random function
+
+#Run modularity against null model natural grassland
+grass_ITS_null_mod <- list()
+
+for (i in 1:1000) { #use 1000 iterations, but test with ~3 first to test loop
+  
+  null_grass <- random(ig2.mb.grass)
+  clusters_null_grass <- cluster_spinglass(null_grass, implementation = 'neg')
+  grass_ITS_null_mod[[paste(i)]] <- clusters_null_grass$modularity
+  print(i)
+  
+}
+
+grass_ITS_null_mod
+
+library(reshape2)
+temp <- melt(grass_ITS_null_mod)
+head(temp)
+colnames(temp) <- c("modularity", "iteration")
+modularity_grass_ITS_null_model <- temp
+#save(modularity_grass_ITS_null_model, file = "modularity_grass_ITS_null_model.Rda")
+
+#Run modularity against null model abandoned arable
+aban_ITS_null_mod <- list()
+
+for (i in 1:1000) { #use 1000 iterations, but test with ~3 first to test loop
+  
+  null_aban <- random(ig2.mb.aban)
+  clusters_null_aban <- cluster_spinglass(null_aban, implementation = 'neg')
+  aban_ITS_null_mod[[paste(i)]] <- clusters_null_aban$modularity
+  print(i)
+  
+}
+
+aban_ITS_null_mod
+
+temp <- melt(aban_ITS_null_mod)
+head(temp)
+colnames(temp) <- c("modularity", "iteration")
+modularity_aban_ITS_null_model <- temp
+#save(modularity_aban_ITS_null_model, file = "modularity_aban_ITS_null_model.Rda")
+
+#Merge the two fungal random results
+modularity_grass_ITS_null_model$soil <- "grassland"
+modularity_aban_ITS_null_model$soil <- "abandoned"
+modularity_ITS_null_model <- rbind(modularity_grass_ITS_null_model, modularity_aban_ITS_null_model)
+modularity_ITS_null_model$soil <- factor(modularity_ITS_null_model$soil, levels = c("grassland", "abandoned"))
+
+#Make distribution figures
+plot_ITS <- ggplot(modularity_ITS_null_model, aes(x=modularity, colour = soil)) + 
+  geom_density(size=0.8) +
+  scale_colour_manual(values=c("#009E73", "#E69F00")) + 
+  scale_fill_manual(values=c("#009E73", "#E69F00")) +
+  geom_vline(xintercept = 0.56, colour = "#E69F00", size=2) + 
+  geom_vline(xintercept = 0.54, colour = "#009E73", size=2) + 
+  xlab("Clustering coefficient") + 
+  ylab("Frequency") +
+  ggtitle("Fungal networks")+
+  scale_y_continuous(expand = c(0, 0)) +
+  theme_bw() +
+  #theme(legend.position= "none", legend.text = element_text(colour="black", size = 15),
+  #      legend.title = element_blank())+
+  theme(axis.title.y=element_text(size=15, colour = "black",margin=(margin(0,10,0,0))))+
+  theme(axis.title.x=element_text(size=15, colour = "black", margin=(margin(10,0,0,0))))+
+  theme(axis.text=element_text(size=12))+
+  theme(plot.title = element_text(size=15, face="bold"))+
+  theme(panel.grid.minor = element_blank())+
+  theme(panel.grid.major = element_blank())+
+  theme(panel.grid.minor = element_blank())+
+  theme(panel.grid.major = element_blank())
+
+plot_ITS
+
+#Calculate significance
+#Number of cases that modularity of random networks was above/below (see density figure) modularity value of real network
+#After Yenni et al. 2017, Global Ecology and Biogeography, 26(5) and in 't Zandt et al. 2021, JEcol 109(3)
+head(modularity_grass_ITS_null_model)
+sum(modularity_grass_ITS_null_model$modularity > 0.54)/1000 #never the case in random network
+sum(modularity_grass_ITS_null_model$modularity > 0.56)/1000 #never the case in random network
+
+
+#Prokaryotes
+#Data
+load("ps1.grass_prune_16S.Rda")
+load("ps1.aban_prune_16S.Rda")
+
+#Load networks
+load("net.grass.mb_16S_100_5_r999_lam20.Rda")
+load("net.aban.mb_16S_100_5_r999_lam20.Rda")
+
+#Create igraph objects without edge weights
+ig.mb.grass     <- adj2igraph(getRefit(net.grass.mb ))
+ig.mb.aban     <- adj2igraph(getRefit(net.aban.mb ))
+
+#Create igraph objects with edge weights
+#Extract edge weights
+grass_temp <- symBeta(getOptBeta(net.grass.mb), mode="maxabs")
+grass_weight <- Matrix::summary(t(grass_temp))[,3]
+aban_temp <- symBeta(getOptBeta(net.aban.mb), mode="maxabs")
+aban_weight <- Matrix::summary(t(aban_temp))[,3]
+
+ig2.mb.grass <- adj2igraph(getRefit(net.grass.mb),diag=TRUE,
+                           edge.attr=list(weight=grass_weight), vertex.attr=list(name=taxa_names(ps1.grass)))
+ig2.mb.aban <- adj2igraph(getRefit(net.aban.mb),diag=TRUE,
+                          edge.attr=list(weight=aban_weight), vertex.attr=list(name=taxa_names(ps1.aban)))
+
+#Null model comparison
+#install.packages("robin")
+library(robin) #for the random function
+
+#Run modularity against null model natural grassland
+grass_16S_null_mod <- list()
+
+for (i in 1:1000) { #use 1000 iterations, but test with ~3 first to test loop
+  
+  null_grass <- random(ig2.mb.grass)
+  clusters_null_grass <- cluster_spinglass(null_grass, implementation = 'neg')
+  grass_16S_null_mod[[paste(i)]] <- clusters_null_grass$modularity
+  print(i)
+  
+}
+
+grass_16S_null_mod
+
+library(reshape2)
+temp <- melt(grass_16S_null_mod)
+head(temp)
+colnames(temp) <- c("modularity", "iteration")
+modularity_grass_16S_null_model <- temp
+#save(modularity_grass_16S_null_model, file = "modularity_grass_16S_null_model.Rda")
+
+
+#Run modularity against null model abandoned arable
+aban_16S_null_mod <- list()
+
+for (i in 1:1000) { #use 1000 iterations, but test with ~3 first to test loop
+  
+  null_aban <- random(ig2.mb.aban)
+  clusters_null_aban <- cluster_spinglass(null_aban, implementation = 'neg')
+  aban_16S_null_mod[[paste(i)]] <- clusters_null_aban$modularity
+  print(i)
+  
+}
+
+aban_16S_null_mod
+
+library(reshape2)
+temp <- melt(aban_16S_null_mod)
+head(temp)
+colnames(temp) <- c("modularity", "iteration")
+modularity_aban_16S_null_model <- temp
+#save(modularity_aban_16S_null_model, file = "modularity_aban_16S_null_model.Rda")
+
+#Merge the two fungal random results
+modularity_grass_16S_null_model$soil <- "grassland"
+modularity_aban_16S_null_model$soil <- "abandoned"
+modularity_16S_null_model <- rbind(modularity_grass_16S_null_model, modularity_aban_16S_null_model)
+modularity_16S_null_model$soil <- factor(modularity_16S_null_model$soil, levels = c("grassland", "abandoned"))
+
+#Make distribution figures
+plot_16S <- ggplot(modularity_16S_null_model, aes(x=modularity, colour = soil)) + 
+  geom_density(size=0.8) +
+  scale_colour_manual(values=c("#009E73", "#E69F00")) + 
+  scale_fill_manual(values=c("#009E73", "#E69F00")) +
+  geom_vline(xintercept = 0.35, colour = "#E69F00", size=2) + 
+  geom_vline(xintercept = 0.36, colour = "#009E73", size=2) + 
+  xlab("Clustering coefficient") + 
+  ylab("Frequency") +
+  ggtitle("Prokaryote networks")+
+  scale_y_continuous(expand = c(0, 0)) +
+  theme_bw() +
+  #theme(legend.position= "none", legend.text = element_text(colour="black", size = 15),
+  #      legend.title = element_blank())+
+  theme(axis.title.y=element_text(size=15, colour = "black",margin=(margin(0,10,0,0))))+
+  theme(axis.title.x=element_text(size=15, colour = "black", margin=(margin(10,0,0,0))))+
+  theme(axis.text=element_text(size=12))+
+  theme(plot.title = element_text(size=15, face="bold"))+
+  theme(panel.grid.minor = element_blank())+
+  theme(panel.grid.major = element_blank())+
+  theme(panel.grid.minor = element_blank())+
+  theme(panel.grid.major = element_blank())
+
+plot_16S
+
+#Calculate significance
+#Number of cases that modularity of random networks was above/below (see density figure) modularity value of real network
+#After Yenni et al. 2017, Global Ecology and Biogeography, 26(5) and in 't Zandt et al. 2021, JEcol 109(3)
+head(modularity_grass_16S_null_model)
+sum(modularity_grass_16S_null_model$modularity > 0.36)/1000 #never the case in random network
+sum(modularity_grass_16S_null_model$modularity > 0.35)/1000 #never the case in random network
+
+#Merge the two plots
+library(cowplot)
+prow <- plot_grid(plot_16S + theme(legend.position="none"), plot_ITS + theme(legend.position="none"), 
+                  labels=c("A", "B"), ncol=2, nrow=1, align="hv", label_size=12, vjust=1.1)
+prow
+legend <- get_legend(plot_16S + theme(legend.box.margin = margin(0, 0, 0, 12)))
+
+prow_l <- plot_grid(prow, legend, ncol = 2, rel_widths = c(2,.4))
+prow_l 
+
+#save_plot("C:/Users/dzandt/Desktop/Skopky_microbiome/Network_robustness/FigSX_null_model.png", prow_l,
+#          ncol = 2, nrow = 1, base_aspect_ratio = 1.5, dpi=600)
