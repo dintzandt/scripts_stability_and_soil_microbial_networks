@@ -1,0 +1,291 @@
+rm(list=ls())
+getwd()
+#Set wd
+setwd("D:/Prague/1. Dry grassland development/R/Microbial")
+#Install packages
+#Only once:
+#Install Rtools via https://cran.r-project.org/bin/windows/Rtools/index.html
+#writeLines('PATH="${RTOOLS40_HOME}\\usr\\bin;${PATH}"', con = "~/.Renviron")
+#restart R session
+#Sys.which("make") #to check whether it works
+#good to go
+
+#First time installations
+#library(devtools)
+#install_github("zdk123/SpiecEasi")
+
+#install.packages("intergraph")
+#install.packages("GGally")
+#devtools::install_github("briatte/ggnet")
+
+#install.packages("network")
+#install.packages("ggnetwork")
+
+#install.packages("devtools")
+#devtools::install_github("microsud/microbiomeutilities")
+
+#Load packages
+library(microbiome) # data analysis and visualisation
+library(phyloseq) # also the basis of data object. Data analysis and visualisation
+library(RColorBrewer) # nice color options
+library(ggpubr) # publication quality figures, based on ggplot2
+library(dplyr) # data handling
+library(SpiecEasi) # Network analysis for sparse compositional data  
+library(network)
+library(intergraph)
+#devtools::install_github("briatte/ggnet")
+library(ggnet)
+library(igraph)
+library(microbiomeutilities)
+library(pulsar)
+
+#Read in data
+count_tab <- read.table("count_tab_bac.txt", sep="\t",header=T, row.names=1)
+tax_tab <- as.matrix(read.table("tax_tab_bac.txt", header=T,
+                                row.names=1, sep="\t"))
+colnames(tax_tab) <- c("Domain", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+sample_info_tab <- read.table("sample_info_tab.txt", sep="\t",header=T, row.names=1)
+
+#Make phyloseq object
+count_phy <- otu_table(count_tab, taxa_are_rows=T)
+sample_info_tab_phy <- sample_data(sample_info_tab)
+tax_tab_phy <- tax_table(tax_tab)
+ps1 <- phyloseq(count_phy, tax_tab_phy, sample_info_tab_phy)
+
+#Reduce OTUs
+ps1_r <- prune_taxa(taxa_sums(ps1) > 100, ps1)
+
+# Add taxonomic classification to OTU ID
+ps1_r_tax <- microbiomeutilities::format_to_besthit(ps1_r)
+head(tax_table(ps1_r))
+head(tax_table(ps1_r_tax))
+
+#Subset into grassland and abandoned soil samples
+ps1.grass <- subset_samples(ps1_r_tax, soil == "grassland")
+ps1.aban <- subset_samples(ps1_r_tax, soil == "abandoned")
+
+#Create prevalence table for grassland
+prevelancedf = apply(X = otu_table(ps1.grass),
+                     MARGIN = 1,
+                     FUN = function(x){sum(x > 0)})
+
+# Add taxonomy and total read counts to this data.frame
+prevelancedf = data.frame(Prevalence = prevelancedf,
+                          TotalAbundance = taxa_sums(ps1.grass),
+                          tax_table(ps1.grass))
+prevelancedf[1:10,] #check
+prevelancedf1 = subset(prevelancedf, Phylum %in% get_taxa_unique(ps1.grass, taxonomic.rank = "Phylum"))
+keepTaxa = rownames(prevelancedf1)[(prevelancedf1$Prevalence >= 5)] #checked for 5, 10, and 15
+length(keepTaxa)
+
+#Subset taxa
+ps1.grass = prune_taxa(keepTaxa, ps1.grass)
+#Save
+#save(ps1.grass, file = "ps1.grass_prune_16S.Rda")
+
+#Create prevalence table for abandoned
+prevelancedf = apply(X = otu_table(ps1.aban),
+                     MARGIN = 1,
+                     FUN = function(x){sum(x > 0)})
+
+# Add taxonomy and total read counts to this data.frame
+prevelancedf = data.frame(Prevalence = prevelancedf,
+                          TotalAbundance = taxa_sums(ps1.aban),
+                          tax_table(ps1.aban))
+prevelancedf[1:10,] #check
+prevelancedf1 = subset(prevelancedf, Phylum %in% get_taxa_unique(ps1.aban, taxonomic.rank = "Phylum"))
+keepTaxa = rownames(prevelancedf1)[(prevelancedf1$Prevalence >= 5)] #checked for 5, 10, and 15
+length(keepTaxa)
+
+#Subset taxa
+ps1.aban = prune_taxa(keepTaxa, ps1.aban)
+#Save
+#save(ps1.aban, file = "ps1.aban_prune_16S.Rda")
+
+#Save
+otu.grass <- t(otu_table(ps1.grass)@.Data) #extract the otu table from phyloseq object
+tax.grass <- as.data.frame(tax_table(ps1.grass)@.Data)#extract the taxonomy information
+head(tax.grass)
+
+otu.aban <- t(otu_table(ps1.aban)@.Data) #extract the otu table from phyloseq object
+tax.aban <- as.data.frame(tax_table(ps1.aban)@.Data)#extract the taxonomy information
+head(tax.aban)
+
+#Network construction
+#please use more numebr of rep.num (99 or 999) the paraemters when running real data
+#try with rep.num=50 for first run and increase later on
+#Natural grassland
+net.grass.mb <- spiec.easi(ps1.grass, method='mb', lambda.min.ratio=1e-2,
+                        nlambda=20, pulsar.params=list(rep.num=999))
+
+#Save networks
+save(net.grass.mb, file="net.grass.mb_16S_100_5_r999_lam20.Rda")
+
+#Abandoned arable
+net.aban.mb <- spiec.easi(ps1.aban, method='mb', lambda.min.ratio=1e-2,
+                           nlambda=20, pulsar.params=list(rep.num=999))
+
+#Save networks
+save(net.aban.mb, file="net.aban.mb_16S_100_5_r999_lam20.Rda")
+
+####LOAD HERE####
+#Load previously made networks
+load("net.grass.mb_16S_100_5_r999_lam20.Rda")
+load("net.aban.mb_16S_100_5_r999_lam20.Rda")
+
+#Check networks
+getStability(net.grass.mb) #nlambda 20 is good
+getStability(net.aban.mb) #nlambda 20 is good
+
+#Create objects for igraph
+ig.mb.grass     <- adj2igraph(getRefit(net.grass.mb ))
+ig.mb.aban     <- adj2igraph(getRefit(net.aban.mb ))
+
+#Set weights of nodes
+vsize.grass    <- rowMeans(clr(otu.grass, 1))+6
+am.coord.grass <- layout.fruchterman.reingold(ig.mb.grass)
+
+vsize.aban    <- rowMeans(clr(otu.aban, 1))+6
+am.coord.aban <- layout.fruchterman.reingold(ig.mb.aban)
+
+#Compare networks
+par(mfrow=c(1,2))
+plot(ig.mb.grass, layout=am.coord.grass, vertex.size=vsize.grass, vertex.label=NA, main="MB")
+plot(ig.mb.aban, layout=am.coord.aban, vertex.size=vsize.aban, vertex.label=NA, main="MB")
+
+#Extract edge weights
+grass_temp <- symBeta(getOptBeta(net.grass.mb), mode="maxabs")
+grass_weight <- Matrix::summary(t(grass_temp))[,3]
+aban_temp <- symBeta(getOptBeta(net.aban.mb), mode="maxabs")
+aban_weight <- Matrix::summary(t(aban_temp))[,3]
+
+#Plot mb network per class
+ig2.mb.grass <- adj2igraph(getRefit(net.grass.mb),diag=TRUE,
+                           edge.attr=list(weight=grass_weight), vertex.attr=list(name=taxa_names(ps1.grass)))
+#plot_network(ig2.mb, ps1.grass, type='taxa', color="Phylum") #very complex
+
+ig2.mb.aban <- adj2igraph(getRefit(net.aban.mb),diag=TRUE,
+                          edge.attr=list(weight=aban_weight), vertex.attr=list(name=taxa_names(ps1.aban)))
+#plot_network(ig2.mb.aban, ps1.aban, type='taxa', color="Phylum") #very complex
+
+#Calculate number of positive and negative edges
+E(ig2.mb.grass)[weight > 0] #5496/10209 edges; 1008 nodes
+E(ig2.mb.grass)[weight < 0] #4713/10209 edges
+E(ig2.mb.aban)[weight > 0] #5486/10079 edges; 1024 nodes
+E(ig2.mb.aban)[weight < 0] #4593/10079 edges
+
+#Check edge weights
+mean(abs(E(ig2.mb.grass)$weight))
+mean(abs(E(ig2.mb.aban)$weight))
+min(abs(E(ig2.mb.grass)$weight))
+max(abs(E(ig2.mb.grass)$weight))
+min(abs(E(ig2.mb.aban)$weight))
+max(abs(E(ig2.mb.aban)$weight))
+
+#Simple plot with negative and positive co-occurence
+par(mfrow=c(1,2))
+E(ig2.mb.grass)[weight > 0]$color<-"#0072B2" #now color the edges based on their values positive is steelblue
+E(ig2.mb.grass)[weight < 0]$color<-"#D55E00"  #now color the edges based on their values
+plot(ig2.mb.grass, layout=am.coord.grass, vertex.size = vsize.grass, vertex.label.cex = 0.1)
+    
+E(ig2.mb.aban)[weight > 0]$color<-"#0072B2" #now color the edges based on their values positive is steelblue
+E(ig2.mb.aban)[weight < 0]$color<-"#D55E00"  #now color the edges based on their values
+plot(ig2.mb.aban, layout=am.coord.aban, vertex.size = vsize.aban, vertex.label.cex = 0.1)
+        
+#Increase visualisation
+grass.net <- asNetwork(ig2.mb.grass)
+network::set.edge.attribute(grass.net, "color", ifelse(grass.net %e% "weight" > 0, "#0072B2", "#D55E00"))
+
+aban.net <- asNetwork(ig2.mb.aban)
+network::set.edge.attribute(aban.net, "color", ifelse(aban.net %e% "weight" > 0, "#0072B2", "#D55E00"))
+
+#Add taxonomic info
+colnames(tax_table(ps1.grass))
+phyla.grass <- map_levels(colnames(otu.grass), from = "best_hit", to = "Phylum", tax_table(ps1.grass))
+grass.net %v% "Phylum" <- phyla.grass
+grass.net %v% "nodesize" <- vsize.grass
+
+colnames(tax_table(ps1.aban))
+phyla.aban <- map_levels(colnames(otu.aban), from = "best_hit", to = "Phylum", tax_table(ps1.aban))
+aban.net %v% "Phylum" <- phyla.aban
+aban.net %v% "nodesize" <- vsize.aban
+
+#Make network plot
+mycolors <- scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c","#fb9a99","#e31a1c",
+                                                   "#fdbf6f","#ff7f00","#cab2d6","#6a3d9a","#ffff99","#b15928", 
+                                                   "black", "red", "blue", "green", "orange"))
+                                                   
+p <- ggnet2(grass.net, node.color = "Phylum", 
+            label = F, node.size = "nodesize", 
+            label.size = 2, edge.color = "color") + guides(color=guide_legend(title="Phylum"), size = FALSE) + mycolors
+p 
+
+p <- ggnet2(aban.net, node.color = "Phylum", 
+            label = F, node.size = "nodesize", 
+            label.size = 2, edge.color = "color") + guides(color=guide_legend(title="Phylum"), size = FALSE) + mycolors
+p 
+
+#Identify modularity
+modules.grass = cluster_spinglass(ig2.mb.grass, implementation = 'neg') #spinglass takes pos and neg into account
+print(modules.grass)
+modularity(modules.grass)
+
+modules.aban = cluster_spinglass(ig2.mb.aban, implementation = 'neg') #spinglass takes pos and neg into account
+print(modules.aban)
+modularity(modules.aban)
+
+#plot
+V(ig2.mb.grass)$color=modules.grass$membership
+plot(ig2.mb.grass, col = modules.grass, vertex.size = 4, vertex.label = NA)
+
+V(ig2.mb.aban)$color=modules.aban$membership
+plot(ig2.mb.aban, col = modules.aban, vertex.size = 4, vertex.label = NA)
+
+#Add membership to network plot
+grass.net %v% "membership" <- modules.grass$membership
+aban.net %v% "membership" <- modules.aban$membership
+
+#Load previous clustering
+load("clusters.grass.16S_spinglass_100_5_r999_nlam20.RDa")
+load("clusters.aban.16S_spinglass_100_5_r999_nlam20.RDa")
+clusters.grass
+clusters.aban
+
+grass.net %v% "membership" <- clusters.grass$modules.grass.membership
+aban.net %v% "membership" <- clusters.aban$modules.aban.membership
+
+#Make network plot
+library(cowplot)
+mycolors <- scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c","#fb9a99","#e31a1c",
+                                                   "#fdbf6f","#ff7f00","#cab2d6","#6a3d9a","#ffff99","#b15928", 
+                                                   "black", "red", "blue", "green", "orange"))
+                                                   
+p <- ggnet2(grass.net, node.color = "membership", 
+            label = F, node.size = "nodesize", 
+            label.size = 2, edge.color = "color") + guides(color=guide_legend(title="Cluster"), size = FALSE) + mycolors
+p 
+prow <- plot_grid(p, labels=c("A"), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("E:/Prague/1. Dry grassland development/MS/Figures/FigSX_Network_16S_grass.png", prow,
+#          ncol = 2, nrow = 2, base_aspect_ratio = 1.5, dpi=600) #PC
+
+p <- ggnet2(aban.net, node.color = "membership", 
+            label = F, node.size = "nodesize", 
+            label.size = 2, edge.color = "color") + guides(color=guide_legend(title="Cluster"), size = FALSE) + mycolors
+p 
+prow <- plot_grid(p, labels=c("B"), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("E:/Prague/1. Dry grassland development/MS/Figures/FigSX_Network_16S_aban.png", prow,
+#          ncol = 2, nrow = 2, base_aspect_ratio = 1.5, dpi=600) #PC
+
+#Natural grassland has 14 clusters
+#Abandanoned arable has 15 clusters
+
+#Check which OTUS are port of different modules
+#Make df
+clusters.grass <- data.frame(modules.grass$names, modules.grass$membership)
+clusters.aban <- data.frame(modules.aban$names, modules.aban$membership)
+
+#Save
+#save(clusters.grass, file = "clusters.grass.16S_spinglass_100_5_r99_nlam20.RDa")
+#save(clusters.aban, file = "clusters.aban.16S_spinglass_100_5_r999_nlam20.RDa")
