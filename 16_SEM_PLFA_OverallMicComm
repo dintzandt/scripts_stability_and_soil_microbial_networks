@@ -1,0 +1,143 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R/Microbial") #PC
+
+library("phyloseq")
+library("vegan")
+library("DESeq2")
+library("ggplot2")
+library("dendextend")
+library("tidyr")
+library("viridis")
+library("reshape")
+library("plyr")
+library("stringr")
+library("metagMisc")
+library("igraph")
+library(cowplot)
+library(car)
+library(nlme)
+library(sjstats)
+library(piecewiseSEM)
+library(nlme)
+
+#Load data
+load("MData_grass_cluster_16S.RDa")
+load("MData_aban_cluster_16S.RDa")
+
+#####Run through PLFA NLFA - natural grassland#####
+#bac
+Datasem <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 1),]
+head(Datasem)
+qqnorm(Datasem$bac)
+qqnorm(log(Datasem$bac))
+qqnorm(Datasem$fungi)
+qqnorm(log(Datasem$fungi))
+qqnorm(Datasem$AMF)
+qqnorm(log(Datasem$AMF))
+qqnorm(Datasem$avgSI_16S)
+qqnorm(sqrt(Datasem$avgSI_16S))
+qqnorm(Datasem$avgSI_ITS)
+qqnorm(sqrt(Datasem$avgSI_ITS))
+qqnorm(Datasem$Shannon_ITS)
+qqnorm(Datasem$Shannon_16S)
+
+vf1 <- varIdent(~1 | seed_density)
+vf2 <- varFixed( ~ scr2_ef)
+vf3 <- varExp(form = ~ soil_C_org)
+vf4 <- varComb(varFixed( ~ scr2_ef), varFixed( ~ div_ef_2yr))
+vf5 <- varFixed( ~ scr2)
+vf6 <- varComb(varFixed( ~ scr2), varFixed( ~ div_ef_2yr))
+
+m0.together = psem(
+  
+  r1 <- lme(troot_DW ~ scr2, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r2 <- lme(soil_N ~ ttotbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r3 <- lme(soil_C_org ~ div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r4 <- lme(log(soil_P) ~ diversity + scr1, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r5 <- lme(log(NO3) ~ diversity + scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r6 <- lme(log(NH4) ~ scr1_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r7 <- lme(log(NO2) ~ troot_DW, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r8 <- lme(soil_pH_KCl ~ totbio_ef + div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r9 <- lme(avgSI_16S ~ soil_N + soil_C_org + scr1, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit, weights = vf6)
+)
+
+summary(m0.together, Datasem)
+summary(m0.together, Datasem)$IC
+plot(m0.together)
+qqnorm(resid(r9))
+plot(resid(r9) ~ fitted(r9))
+
+#Results
+#Bac
+#r9 <- lme(bac ~ soil_N + scr2 + tdiv_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Fungi
+#r9 <- lme(fungi ~ log(NH4) + soil_pH_KCl + scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#AMF
+#r9 <- lme(log(AMF) ~ soil_N + log(NH4) + soil_pH_KCl + scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+
+#Overall parameters
+#avgSI_16S
+#r9 <- lme(avgSI_16S ~ soil_N + soil_C_org + scr1, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit, weights = vf6)
+#avgSI_ITS
+#r9 <- lme(avgSI_ITS ~ div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit, weights = vf4)
+#Shannon_16S
+#r9 <- lme(Shannon_16S ~ troot_DW, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Shannon_ITS
+#r9 <- lme(Shannon_ITS ~ log(soil_P) + scr2 + diversity + totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit, weights = vf4)
+
+#####Run through PLFA NLFA - abandeoned arable#####
+Datasem <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 1),]
+head(Datasem)
+qqnorm(Datasem$bac)
+qqnorm(log(Datasem$bac))
+qqnorm(Datasem$fungi)
+qqnorm(log(Datasem$fungi))
+qqnorm(Datasem$AMF)
+qqnorm(log(Datasem$AMF))
+qqnorm(Datasem$Shannon_16S)
+qqnorm(Datasem$Shannon_ITS)
+qqnorm(Datasem$avgSI_16S)
+qqnorm(Datasem$avgSI_ITS)
+qqnorm(log(Datasem$avgSI_ITS)) #somewhat better
+
+vf1 <- varIdent(~1 | seed_density)
+vf2 <- varFixed( ~ div_ef_2yr)
+vf3 <- varExp(form = ~ scr2)
+vf4 <- varComb(varFixed( ~ scr2), varFixed( ~ div_ef_2yr))
+vf5 <- varFixed( ~ scr2)
+
+m0.together = psem(
+  
+  r1 <- lme(troot_DW ~ scr3_ef + totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r2 <- lme(soil_N ~ tdiv_trend + scr2, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r3 <- lme(soil_C_org ~ tscr3_trend + scr1_ef + scr2_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r5 <- lme(log(NO3) ~ scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r7 <- lme(log(NO2) ~ scr2 + scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r8 <- lme(soil_pH_KCl ~ scr2 + scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r9 <- lme(log(avgSI_ITS) ~ soil_pH_KCl, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+  
+)
+
+summary(m0.together, Datasem)
+summary(m0.together, Datasem)$IC
+plot(m0.together)
+qqnorm(resid(r9))
+plot(resid(r9) ~ fitted(r9))
+
+#Results
+#Bac 0.49/0.49
+#r9 <- lme(bac ~ log(NO2) + diversity, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Fungi
+#r9 <- lme(log(fungi) ~ troot_DW + log(NO2) + log(NO3) + diversity, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#AMF
+#r9 <- lme(log(AMF) ~ log(NO3) + diversity, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+
+#Shannon 16S
+#r9 <- lme(Shannon_16S ~ scr2_ef + scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Shannon ITS
+# r9 <- lme(Shannon_ITS ~ scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#avgSI 16S
+# r9 <- lme(avgSI_16S ~ totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#avgSI ITS
+#r9 <- lme(log(avgSI_ITS) ~ soil_pH_KCl, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
