@@ -1,0 +1,216 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R/Microbial") #PC
+
+library("phyloseq")
+library("vegan")
+library("DESeq2")
+library("ggplot2")
+library("dendextend")
+library("tidyr")
+library("viridis")
+library("reshape")
+library("plyr")
+library("stringr")
+library("metagMisc")
+library(nlme)
+library(car)
+library(cowplot)
+
+#Read in ITS data and modules
+count_tab_grass <- read.table("count_tab_fun_grass.txt", sep="\t",header=T, row.names=1)
+count_tab_aban <- read.table("count_tab_fun_aban.txt", sep="\t",header=T, row.names=1)
+temp <- read.table("tax_tab_fun.txt", header=T,
+                   row.names=1, sep="\t")
+temp$phylum[which(temp$phylum == "unidentified")] <- NA
+temp$class[which(temp$class == "unidentified")] <- NA
+temp$OTU <- row.names(temp)
+
+#Load fungal clustering/membership
+load("clusters.grass.fun_spinglass_100_5_gamma0_r999_lam20.RDa")
+load("clusters.aban.fun_spinglass_100_5_gamma0_r999_lam20.RDa")
+head(clusters.grass)
+head(clusters.aban)
+clusters.grass$OTU <- str_split_fixed(clusters.grass$modules.grass.names, n=2, ":")[,1]
+clusters.aban$OTU <- str_split_fixed(clusters.aban$modules.aban.names, n=2, ":")[,1]
+
+#Merge with taxonomy
+temp2 <- merge(clusters.grass, temp, by = ("OTU"))
+#write.csv(temp2, file="Clusters.grass.fun.csv")
+temp2 <- merge(clusters.aban, temp, by = ("OTU"))
+#write.csv(temp2, file="Clusters.aban.fun.csv")
+
+#Add to taxonomy table
+clusters.grass$modules.grass.names <- NULL
+colnames(clusters.grass) <- c("cluster.grass", "OTU")
+tax_grass <- merge(temp, clusters.grass, by = c("OTU"), all=T)
+clusters.aban$modules.aban.names <- NULL
+colnames(clusters.aban) <- c("cluster.aban", "OTU")
+tax_aban <- merge(temp, clusters.aban, by = c("OTU"), all=T)
+
+#Add fungal traits
+fungaltrait_tab <- read.table("fungaltrait_tab.txt", sep="\t",header=T, row.names=1)
+fungaltrait_tab$OTU <- row.names(fungaltrait_tab)
+tax2_grass <- merge(tax_grass, fungaltrait_tab, by = c("OTU"), all=T)
+tax2_aban <- merge(tax_aban, fungaltrait_tab, by = c("OTU"), all=T)
+
+#Sample info
+sample_info_tab_grass <- read.table("sample_info_tab_fun_grass.txt", sep="\t",header=T, row.names=1)
+sample_info_tab_aban <- read.table("sample_info_tab_fun_aban.txt", sep="\t",header=T, row.names=1)
+
+#CLR transform reads per sample
+library(compositions)
+head(count_tab_grass)
+head(count_tab_aban)
+count_tab_grass_clr <- clr(count_tab_grass, 1)
+count_tab_aban_clr <- clr(count_tab_aban, 1)
+head(count_tab_grass_clr)
+head(count_tab_aban_clr)
+
+#Make long dataframe natural grassland soil
+temp_grass <- data.frame(count_tab_grass_clr)
+temp_grass$OTU <- rownames(temp_grass)
+temp_grass <- melt(temp_grass)
+colnames(temp_grass) <- c("OTU", "sample", "reads_clr")
+sample_info_tab_grass$sample <- row.names(sample_info_tab_grass)
+temp_grass <- merge(temp_grass, sample_info_tab_grass, by = c("sample"), all=T)
+temp3_grass <- merge(temp_grass, tax2_grass, by = c("OTU"), all=T)
+head(temp3_grass)
+temp3_grass$fungal_trait[is.na(temp3_grass$fungal_trait)] <- "unknown"
+Data_grass <- temp3_grass
+
+#Make long dataframe abandoned soil
+temp_aban <- data.frame(count_tab_aban_clr)
+temp_aban$OTU <- rownames(temp_aban)
+temp_aban <- melt(temp_aban)
+colnames(temp_aban) <- c("OTU","sample", "reads_clr")
+sample_info_tab_aban$sample <- row.names(sample_info_tab_aban)
+temp_aban <- merge(temp_aban, sample_info_tab_aban, by = c("sample"), all=T)
+temp3_aban <- merge(temp_aban, tax2_aban, by = c("OTU"), all=T)
+head(temp3_aban)
+temp3_aban$fungal_trait[is.na(temp3_aban$fungal_trait)] <- "unknown"
+Data_aban <- temp3_aban
+
+#Calculate sequencing depth per sample
+head(count_tab_grass)
+head(count_tab_aban)
+totcount_grass <- data.frame(colSums(count_tab_grass))
+totcount_aban <- data.frame(colSums(count_tab_aban))
+
+#Merge with Data clr
+totcount_grass$sample <- rownames(totcount_grass)
+totcount_aban$sample <- rownames(totcount_aban)
+colnames(totcount_grass)[1] <- "totreads"
+colnames(totcount_aban)[1] <- "totreads"
+Data_grass <- merge(Data_grass, totcount_grass, by = c("sample"), all=T)
+Data_aban <- merge(Data_aban, totcount_aban, by = c("sample"), all=T)
+
+#Merge with Data counts
+temp2_grass <- data.frame(count_tab_grass)
+temp2_grass$OTU <- rownames(temp2_grass)
+temp2_grass <- melt(temp2_grass)
+colnames(temp2_grass) <- c("OTU", "sample", "reads")
+temp3_grass <- merge(temp2_grass, sample_info_tab_grass, all=T)
+temp4_grass <- merge(temp3_grass, temp_grass, by = c("OTU", "sample", "soil", "seed_density", "rep"), all=T)
+head(temp4_grass)
+Count_grass <- temp4_grass
+temp2_aban <- data.frame(count_tab_aban)
+temp2_aban$OTU <- rownames(temp2_aban)
+temp2_aban <- melt(temp2_aban)
+colnames(temp2_aban) <- c("OTU", "sample", "reads")
+temp3_aban <- merge(temp2_aban, sample_info_tab_aban, all=T)
+temp4_aban <- merge(temp3_aban, temp_aban, by = c("OTU", "sample", "soil", "seed_density", "rep"), all=T)
+head(temp4_aban)
+Count_aban <- temp4_aban
+Count_grass <- merge(Count_grass, totcount_grass, by = c("sample"), all=T)
+Count_aban <- merge(Count_aban, totcount_aban, by = c("sample"), all=T)
+
+#Average/sum per cluster and fungal trait
+#Grass
+#Sum
+MData_grass_cluster <- ddply(Data_grass, c("sample", "soil", "seed_density", "rep", "cluster.grass"), summarise,
+                             mreads_clr = mean(reads_clr, na.rm=TRUE),
+                             Nreads_clr = sum(!is.na(reads_clr)),
+                             sdreads_clr   = sd(reads_clr, na.rm=TRUE),
+                             sereads_clr   = sdreads_clr / sqrt(Nreads_clr),
+                             sumreads_clr = sum(reads_clr+6, na.rm=TRUE)
+)
+
+head(MData_grass_cluster)
+
+MData_grass_trait <- ddply(Data_grass, c("sample", "soil", "seed_density", "rep", "fungal_trait"), summarise,
+                           mreads_clr = mean(reads_clr, na.rm=TRUE),
+                           Nreads_clr = sum(!is.na(reads_clr)),
+                           sdreads_clr   = sd(reads_clr, na.rm=TRUE),
+                           sereads_clr   = sdreads_clr / sqrt(Nreads_clr),
+                           sumreads_clr = sum(reads_clr+6, na.rm=TRUE)
+)
+
+head(MData_grass_trait)
+
+#Abandoned
+MData_aban_cluster <- ddply(Data_aban, c("sample", "soil", "seed_density", "rep", "cluster.aban"), summarise,
+                            mreads_clr = mean(reads_clr, na.rm=TRUE),
+                            Nreads_clr = sum(!is.na(reads_clr)),
+                            sdreads_clr   = sd(reads_clr, na.rm=TRUE),
+                            sereads_clr   = sdreads_clr / sqrt(Nreads_clr),
+                            sumreads_clr = sum(reads_clr+6, na.rm=TRUE)
+)
+
+head(MData_aban_cluster)
+
+MData_aban_trait <- ddply(Data_aban, c("sample", "soil", "seed_density", "rep", "fungal_trait"), summarise,
+                          mreads_clr = mean(reads_clr, na.rm=TRUE),
+                          Nreads_clr = sum(!is.na(reads_clr)),
+                          sdreads_clr   = sd(reads_clr, na.rm=TRUE),
+                          sereads_clr   = sdreads_clr / sqrt(Nreads_clr),
+                          sumreads_clr = sum(reads_clr+6, na.rm=TRUE)
+)
+
+head(MData_aban_trait)
+
+#Merge with soil chemical and plant community data
+load("D:/Prague/1. Dry grassland development/R/DCA_Comm.Rda")
+head(DCA_Comm)
+colnames(DCA_Comm)[3] <- "seed_density"
+Comm_grass <- DCA_Comm[which(DCA_Comm$soil == "grassland"),] 
+Comm_aban <- DCA_Comm[which(DCA_Comm$soil == "abandoned"),] 
+MData_grass_cluster$code.y <- str_split_fixed(MData_grass_cluster$sample, n=2, "_")[,1]
+MData_grass_trait$code.y <- str_split_fixed(MData_grass_trait$sample, n=2, "_")[,1]
+MData_aban_cluster$code.y <- str_split_fixed(MData_aban_cluster$sample, n=2, "_")[,1]
+MData_aban_trait$code.y <- str_split_fixed(MData_aban_trait$sample, n=2, "_")[,1]
+MData_grass_cluster <- merge(MData_grass_cluster, Comm_grass, by = c("code.y", "soil", "seed_density", "rep"))
+MData_grass_trait <- merge(MData_grass_trait, Comm_grass, by = c("code.y", "soil", "seed_density", "rep"))
+MData_aban_cluster <- merge(MData_aban_cluster, Comm_aban, by = c("code.y", "soil", "seed_density", "rep"))
+MData_aban_trait <- merge(MData_aban_trait, Comm_aban, by = c("code.y", "soil", "seed_density", "rep"))
+
+#Add clusters, why were they not present already?
+Count_grass <- merge(Count_grass, tax2_grass, by = c("OTU")) 
+Count_aban <- merge(Count_aban, tax2_aban, by = c("OTU")) 
+save(Count_grass, file = "Count_grass_ITS.RDa")
+save(Count_aban, file = "Count_aban_ITS.RDa")
+
+#Calculate relative reads
+#Grass
+MRel_grass_cluster <- ddply(Count_grass, c("sample", "soil", "seed_density", "rep", "cluster.grass", "totreads"), summarise,
+                            mrelreads = sum((reads/totreads), na.rm=TRUE)
+)
+
+head(MRel_grass_cluster)
+
+#Aban
+MRel_aban_cluster <- ddply(Count_aban, c("sample", "soil", "seed_density", "rep", "cluster.aban", "totreads"), summarise,
+                           mrelreads = sum((reads/totreads), na.rm=TRUE)
+)
+
+head(MRel_aban_cluster)
+
+#Merge to rest of data
+MRel_grass_cluster$code.y <- str_split_fixed(MRel_grass_cluster$sample, n=2, "_")[,1]
+MRel_aban_cluster$code.y <- str_split_fixed(MRel_aban_cluster$sample, n=2, "_")[,1]
+MData_grass_cluster <- merge(MData_grass_cluster, MRel_grass_cluster, by = c("code.y", "soil", "seed_density", "rep", "sample", "cluster.grass"))
+MData_aban_cluster <- merge(MData_aban_cluster, MRel_aban_cluster, by = c("code.y", "soil", "seed_density", "rep", "sample", "cluster.aban"))
+save(MData_grass_cluster, file = "MData_grass_cluster_ITS.RDa")
+save(MData_aban_cluster, file = "MData_aban_cluster_ITS.RDa")
+
+#####################################################END OF DATA HANDLING#####################################################
