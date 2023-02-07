@@ -168,8 +168,6 @@ MData_aban_cluster <- merge(MData_aban_cluster, Comm_aban, by = c("code.y", "soi
 #Add clusters
 Count_grass <- merge(Count_grass, tax_grass, by = c("OTU")) 
 Count_aban <- merge(Count_aban, tax_aban, by = c("OTU")) 
-save(Count_grass, file = "Count_grass_16S.RDa")
-save(Count_aban, file = "Count_aban_16S.RDa")
 
 #Grass
 MRel_grass_cluster <- ddply(Count_grass, c("sample", "soil", "seed_density", "rep", "cluster.grass", "totreads"), summarise,
@@ -192,3 +190,9 @@ MData_grass_cluster <- merge(MData_grass_cluster, MRel_grass_cluster, by = c("co
 MData_aban_cluster <- merge(MData_aban_cluster, MRel_aban_cluster, by = c("code.y", "soil", "seed_density", "rep", "sample", "cluster.aban"))
 save(MData_grass_cluster, file = "MData_grass_cluster_16S.RDa")
 save(MData_aban_cluster, file = "MData_aban_cluster_16S.RDa")
+
+#Relreads
+Count_grass$relreads <- (Count_grass$reads/Count_grass$totreads)*100
+Count_aban$relreads <- (Count_aban$reads/Count_aban$totreads)*100
+save(Count_grass, file = "Count_grass_16S.RDa")
+save(Count_aban, file = "Count_aban_16S.RDa")
