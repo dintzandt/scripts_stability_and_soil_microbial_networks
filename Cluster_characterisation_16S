@@ -49,13 +49,24 @@ temp_grass <- ddply(SCount_grass, c("cluster.grass", "family"), summarise,
 temp_grass
 
 temp_grass$family[which(temp_grass$family == "" | is.na(temp_grass$family))] <- "unknown"
-temp_grass$family[which(temp_grass$mrelreads < 1.5)] <- "other"
-#temp_grass <- temp_grass[which(!is.na(temp_grass$cluster.grass)),] #delete NA cluster
-#temp_grass$cluster.grass <- as.factor(temp_grass$cluster.grass)
-str(temp_grass)
+
+#Define 'other' if the total rel read is below 1.5
+#Calculate total rel read for each family, then set low abundance families to 'other'
+sum_mrelreads_fam <- list()
+
+for (i in temp_grass$family) {
+  sum_mrelreads_fam[[paste(i)]] <- sum(temp_grass$mrelreads[which(temp_grass$family == i)])
+  
+}
+
+temp <- melt(sum_mrelreads_fam)
+colnames(temp) <- c("sum_mrelreads_fam", "family")
+temp_grass <- merge(temp_grass, temp, by = c("family"), all = T)
+range(temp_grass$sum_mrelreads_fam)
+temp_grass$family[which(temp_grass$sum_mrelreads_fam < 2)] <- "other"
 
 pairPalette <- c("#A6CEE3", "#1F78B4", "#B2DF8A", "#33A02C", "#FB9A99", "#E31A1C",
-                          "#FDBF6F", "#FF7F00", "#CAB2D6", "#6A3D9A", "#FFFF99", "#B15928", "black")
+                          "#FDBF6F", "#FF7F00", "#CAB2D6", "#6A3D9A", "#FFFF99", "#B15928", "black", "grey70")
                           
 plotSA <- ggplot(temp_grass, aes(x=cluster.grass, y=mrelreads, fill=family)) +
   geom_bar(width=0.6, stat="identity") +
@@ -90,10 +101,24 @@ temp_aban <- ddply(SCount_aban, c("cluster.aban", "family"), summarise,
 temp_aban
 
 temp_aban$family[which(temp_aban$family == "" | is.na(temp_aban$family))] <- "unknown"
-temp_aban$family[which(temp_aban$mrelreads < 1.5)] <- "other"
+
+#Define 'other' if the total rel read is below 1.5
+#Calculate total rel read for each family, then set low abundance families to 'other'
+sum_mrelreads_fam <- list()
+
+for (i in temp_aban$family) {
+  sum_mrelreads_fam[[paste(i)]] <- sum(temp_aban$mrelreads[which(temp_aban$family == i)])
+  
+}
+
+temp <- melt(sum_mrelreads_fam)
+colnames(temp) <- c("sum_mrelreads_fam", "family")
+temp_aban <- merge(temp_aban, temp, by = c("family"), all = T)
+range(temp_aban$sum_mrelreads_fam)
+temp_aban$family[which(temp_aban$sum_mrelreads_fam < 2)] <- "other"
 
 pairPalette <- c("#A6CEE3", "#1F78B4", "#B2DF8A", "#33A02C", "#FB9A99", "#E31A1C",
-                          "#FDBF6F", "#FF7F00", "#CAB2D6", "#6A3D9A", "#FFFF99", "#B15928", "black")
+                          "#FDBF6F", "#FF7F00", "#CAB2D6", "#6A3D9A", "#FFFF99", "#B15928", "black", "grey70")
                           
 plotSB <- ggplot(temp_aban, aes(x=cluster.aban, y=mrelreads, fill=family)) +
   geom_bar(width=0.6, stat="identity") +
