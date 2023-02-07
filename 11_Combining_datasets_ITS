@@ -187,8 +187,6 @@ MData_aban_trait <- merge(MData_aban_trait, Comm_aban, by = c("code.y", "soil", 
 #Add clusters, why were they not present already?
 Count_grass <- merge(Count_grass, tax2_grass, by = c("OTU")) 
 Count_aban <- merge(Count_aban, tax2_aban, by = c("OTU")) 
-save(Count_grass, file = "Count_grass_ITS.RDa")
-save(Count_aban, file = "Count_aban_ITS.RDa")
 
 #Calculate relative reads
 #Grass
@@ -213,4 +211,9 @@ MData_aban_cluster <- merge(MData_aban_cluster, MRel_aban_cluster, by = c("code.
 save(MData_grass_cluster, file = "MData_grass_cluster_ITS.RDa")
 save(MData_aban_cluster, file = "MData_aban_cluster_ITS.RDa")
 
+#Relreads
+Count_grass$relreads <- (Count_grass$reads/Count_grass$totreads)*100
+Count_aban$relreads <- (Count_aban$reads/Count_aban$totreads)*100
+save(Count_grass, file = "Count_grass_ITS.RDa")
+save(Count_aban, file = "Count_aban_ITS.RDa")
 #####################################################END OF DATA HANDLING#####################################################
