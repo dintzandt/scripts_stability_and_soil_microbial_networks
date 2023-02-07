@@ -1,0 +1,359 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R/Microbial") #PC
+
+library("phyloseq")
+library("vegan")
+library("DESeq2")
+library("ggplot2")
+library("dendextend")
+library("tidyr")
+library("viridis")
+library("reshape")
+library("plyr")
+library("stringr")
+library("metagMisc")
+library("igraph")
+library(cowplot)
+library(car)
+library(nlme)
+library(sjstats)
+library(piecewiseSEM)
+library(nlme)
+
+#Load data
+load("MData_grass_cluster_16S.RDa")
+load("MData_aban_cluster_16S.RDa")
+
+#Create base models
+#####Natural grassland#####
+#Add transformations
+MData_grass_cluster$tscr2_trend <- log(MData_grass_cluster$scr2_trend+1)
+MData_grass_cluster$tscr3_trend <- MData_grass_cluster$scr3_trend^2
+MData_grass_cluster$tdiv_trend <- sqrt(MData_grass_cluster$div_trend+1)
+MData_grass_cluster$ttotbio <- log(MData_grass_cluster$total_biomass)
+MData_grass_cluster$tAMF <- log(MData_grass_cluster$AMF)
+MData_grass_cluster$troot_DW <- log(MData_grass_cluster$root_DW)
+MData_grass_cluster$ttotbio_ef <- log(scale(MData_grass_cluster$totbio_ef)+2)
+
+#Cluster 1
+head(MData_grass_cluster)
+Datasem <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 1),]
+
+#Base 1 - Basic plant community SEM - 2019
+#With seed density as random effect
+m0.current = psem(
+  
+  r1 <- lme(troot_DW ~ scr2, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r2 <- lme(soil_N ~ diversity, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r3 <- lme(soil_C ~ diversity, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r4 <- lme(soil_C_org ~ troot_DW, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r6 <- lme(log(soil_P) ~ diversity + scr1, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r7 <- lme(log(NO3) ~ diversity + scr1 + scr2, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r8 <- lme(log(NH4) ~ scr1, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r9 <- lme(log(NO2) ~ troot_DW, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r10 <- lme(soil_pH_KCl ~ troot_DW, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  log(soil_P) %~~% soil_N,
+  diversity %~~% scr2
+  
+)
+
+summary(m0.current, Datasem)
+summary(m0.current, Datasem)$IC
+plot(m0.current)
+
+#Base 2 - With only plant compositional development SEM
+#Add:  scr1_trend + tscr2_trend + tscr3_trend +
+#scr1_ef + scr2_ef + scr3_ef
+m0.dev = psem(
+  
+  r1 <- lme(troot_DW ~ tscr2_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r2 <- lme(soil_N ~  scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r4 <- lme(soil_C_org ~  tscr3_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r6 <- lme(log(soil_P) ~  scr1_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r7 <- lme(log(NO3) ~  scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r8 <- lme(log(NH4) ~  scr1_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r9 <- lme(log(NO2) ~  scr1_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r10 <- lme(soil_pH_KCl ~  scr1_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  log(soil_P) %~~% soil_N,
+  scr1_ef %~~% scr2_ef,
+  scr1_ef %~~% scr3_ef
+  
+)
+
+summary(m0.dev, Datasem)
+summary(m0.dev, Datasem)$IC
+plot(m0.dev)
+
+#Base 3: base SEM with overall community developmental parameters
+#Add: totbio_trend + tdiv_trend + totbio_ef + div_ef_1yr + div_ef_2yr
+m0.ov.dev = psem(
+  
+  #r1 <- lme(troot_DW ~ totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r2 <- lme(soil_N ~  ttotbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r4 <- lme(soil_C_org ~  div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r6 <- lme(log(soil_P) ~  div_ef_1yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r7 <- lme(log(NO3) ~  tdiv_trend + totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r8 <- lme(log(NH4) ~  tdiv_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r9 <- lme(log(NO2) ~  totbio_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r10 <- lme(soil_pH_KCl ~  totbio_ef + div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  log(soil_P) %~~% soil_N
+  
+)
+
+summary(m0.ov.dev, Datasem)
+summary(m0.ov.dev, Datasem)$IC
+plot(m0.ov.dev)
+
+#Step 4: place retained parameters together
+head(Datasem)
+#View(Datasem)
+
+m0.together = psem(
+  
+  r1 <- lme(troot_DW ~ scr2, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r2 <- lme(soil_N ~ ttotbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r3 <- lme(soil_C_org ~ div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r4 <- lme(log(soil_P) ~ diversity + scr1, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r5 <- lme(log(NO3) ~ diversity + scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r6 <- lme(log(NH4) ~ scr1_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r7 <- lme(log(NO2) ~ troot_DW, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r8 <- lme(soil_pH_KCl ~  totbio_ef + div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  log(soil_P) %~~% soil_N,
+  diversity %~~% scr2,
+  scr1_ef %~~% scr2_ef,
+  scr1_ef %~~% scr3_ef,
+  log(NH4)  %~~%log(NO3),
+  soil_pH_KCl  %~~% log(soil_P),
+  log(NO3)  %~~% log(soil_P),
+  soil_pH_KCl  %~~% soil_C_org,
+  soil_pH_KCl  %~~% soil_N,
+  log(NO3) %~~% soil_N,
+  soil_C_org  %~~% soil_N,
+  totbio_ef %~~% div_ef_2yr
+  
+)
+
+summary(m0.together, Datasem)
+summary(m0.together, Datasem)$IC
+plot(m0.together)
+Datasem$ttotbio_ef <- log(scale(Datasem$totbio_ef)+2)
+
+qqnorm(resid(r2))
+plot(resid(r2) ~ fitted(r2))
+
+
+#####Abandoned arable#####
+#Add transformations
+MData_aban_cluster$tscr1_trend <- MData_aban_cluster$scr1_trend^2
+MData_aban_cluster$tscr2_trend <- log(MData_aban_cluster$scr2_trend+1)
+MData_aban_cluster$tscr3_trend <- MData_aban_cluster$scr3_trend^2
+MData_aban_cluster$tdiv_trend <- sqrt(MData_aban_cluster$div_trend+1)
+MData_aban_cluster$ttotal_biomass <- log(MData_aban_cluster$total_biomass)
+MData_aban_cluster$tfungi <- log(MData_aban_cluster$fungi)
+MData_aban_cluster$tAMF <- log(MData_aban_cluster$AMF)
+MData_aban_cluster$troot_DW <- sqrt(MData_aban_cluster$root_DW)
+
+#Cluster 1
+head(MData_aban_cluster)
+Datasem <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 1),]
+
+#Base 1 - Basic plant community SEM - 2019
+m0.current = psem(
+  
+  #r1 <- lme(troot_DW ~ ttotal_biomass, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r2 <- lme(soil_N ~ scr2, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r4 <- lme(soil_C_org ~ diversity, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r6 <- lme(log(soil_P) ~ diversity, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r7 <- lme(log(NO3) ~ scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r8 <- lme(log(NH4) ~ diversity, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r9 <- lme(log(NO2) ~ scr2 + scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r10 <- lme(soil_pH_KCl ~ scr2 + scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  log(soil_P) %~~% soil_N
+  
+)
+
+summary(m0.current, Datasem)
+summary(m0.current, Datasem)$IC
+plot(m0.current)
+
+#Base 2: 
+#Add:  scr1_trend + tscr2_trend + tscr3_trend +
+#scr1_ef + scr2_ef + scr3_ef
+m0.dev = psem(
+  
+  r1 <- lme(troot_DW ~ scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r2 <- lme(soil_N ~  scr2_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r4 <- lme(soil_C_org ~  tscr3_trend +
+              scr1_ef + scr2_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r6 <- lme(log(soil_P) ~ scr1_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r7 <- lme(log(NO3) ~  tscr3_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r8 <- lme(log(NH4) ~ scr2_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r9 <- lme(log(NO2) ~  tscr2_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r10 <- lme(soil_pH_KCl ~  scr2_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  log(soil_P) %~~% soil_N,
+  scr1_ef %~~% scr2_ef,
+  scr1_ef %~~% scr3_ef
+  
+)
+
+summary(m0.dev, Datasem)
+summary(m0.dev, Datasem)$IC
+plot(m0.dev)
+
+#Base 3: base SEM with overall community developmental parameters
+#Add: totbio_trend + tdiv_trend + totbio_ef + div_ef_1yr + div_ef_2yr
+m0.ov.dev = psem(
+  
+  r1 <- lme(troot_DW ~ totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r2 <- lme(soil_N ~  tdiv_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r4 <- lme(soil_C_org ~  div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r6 <- lme(log(soil_P) ~ totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r7 <- lme(log(NO3) ~  div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r8 <- lme(log(NH4) ~  tdiv_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r9 <- lme(log(NO2) ~  div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r10 <- lme(soil_pH_KCl ~  div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  log(soil_P) %~~% soil_N
+  
+)
+
+summary(m0.ov.dev, Datasem)
+summary(m0.ov.dev, Datasem)$IC
+plot(m0.ov.dev)
+
+#Step 4: place retained parameters together
+head(Datasem)
+
+vf1 <- varIdent(~1 | seed_density)
+vf2 <- varFixed( ~ div_ef_2yr)
+vf3 <- varExp(form = ~ soil_pH_KCl)
+vf4 <- varComb(varIdent(~1 | seed_density), varFixed( ~ div_ef_1yr))
+
+m0.together = psem(
+  
+  r1 <- lme(troot_DW ~ scr3_ef + totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r2 <- lme(soil_N ~ tdiv_trend + scr2, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r3 <- lme(soil_C_org ~ tscr3_trend + scr1_ef + scr2_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r4 <- lme(log(soil_P) ~ diversity, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r5 <- lme(log(NO3) ~ scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r7 <- lme(log(NO2) ~ scr2 + scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r8 <- lme(soil_pH_KCl ~ scr2 + scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  scr3 %~~% tscr3_trend,
+  scr1_ef %~~% scr3_ef,
+  log(NH4) %~~% log(NO3),
+  soil_C_org %~~% soil_N
+  
+)
+
+summary(m0.together, Datasem)
+summary(m0.together, Datasem)$IC
+plot(m0.together)
+
+qqnorm(resid(r2))
+plot(resid(r8) ~ fitted(r8))
+
+
+######RUN throught 16S clusters - natural grassland#####
+#Cluster 1
+Datasem <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 3),]
+head(Datasem)
+qqnorm(Datasem$mrelreads)
+qqnorm(log(Datasem$mrelreads+0.001))
+#add 
+#~ troot_DW + soil_N + soil_C_org + log(soil_P) + log(NO3) + log(NH4) + soil_pH_KCl
+#scr1 + scr2 + scr3 + diversity + ttotal_biomass +
+#scr1_trend + tscr2_trend + tscr3_trend + tdiv_trend + totbio_trend +
+#scr1_ef + scr2_ef + scr3_ef + div_ef_2yr + totbio_ef
+
+m0.together = psem(
+  
+  r1 <- lme(troot_DW ~ scr2, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r2 <- lme(soil_N ~ ttotbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r3 <- lme(soil_C_org ~ div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r4 <- lme(log(soil_P) ~ diversity + scr1, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r5 <- lme(log(NO3) ~ diversity + scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r6 <- lme(log(NH4) ~ scr1_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  #r7 <- lme(log(NO2) ~ troot_DW, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r8 <- lme(soil_pH_KCl ~ totbio_ef + div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r9 <- lme(log(mrelreads) ~ soil_N + scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+  
+)
+
+summary(m0.together, Datasem)
+summary(m0.together, Datasem)$IC
+plot(m0.together)
+qqnorm(resid(r9))
+plot(resid(r9) ~ fitted(r9))
+
+#Results
+#Cluster 1
+#r9 <- lme(log(mrelreads) ~ troot_DW + scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 2
+#r9 <- lme(mrelreads ~ soil_N + scr1_trend + tscr2_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 3
+#r9 <- lme(log(mrelreads) ~ soil_N + scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 4
+#r9 <- lme(log(mrelreads) ~ troot_DW + log(soil_P), data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 5
+#r9 <- lme(log(mrelreads) ~ troot_DW + soil_C_org + soil_pH_KCl + totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 6
+#r9 <- lme(log(mrelreads) ~ soil_N + totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 7
+#nothing
+#Cluster 8
+#r9 <- lme(log(mrelreads+0.001) ~  scr1_trend + tscr2_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 9
+#r9 <- lme(log(mrelreads+0.001) ~ div_ef_2yr, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+
+######RUN throught 16S clusters - Abandoned arable#####
+#Cluster 1
+Datasem <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 3),]
+head(Datasem)
+qqnorm(Datasem$mrelreads)
+qqnorm(log(Datasem$mrelreads+0.001))
+
+#add ~ troot_DW + soil_N + soil_C_org + log(NO2) + log(NO3) + soil_pH_KCl
+#scr1 + scr2 + scr3 + diversity + ttotal_biomass
+#tscr1_trend + tscr2_trend + tscr3_trend + tdiv_trend + totbio_trend
+#scr1_ef + scr2_ef + scr3_ef + div_ef_2yr + totbio_ef
+
+m0.together = psem(
+  
+  r1 <- lme(troot_DW ~ scr3_ef + totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r2 <- lme(soil_N ~ tdiv_trend + scr2, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r3 <- lme(soil_C_org ~ tscr3_trend + scr1_ef + scr2_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r5 <- lme(log(NO3) ~ scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r7 <- lme(log(NO2) ~ scr2 + scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r8 <- lme(soil_pH_KCl ~ scr2 + scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit),
+  r9 <- lme(mrelreads ~ soil_N + soil_pH_KCl + diversity + scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+  
+  
+)
+
+summary(m0.together, Datasem)
+summary(m0.together, Datasem)$IC
+plot(m0.together)
+qqnorm(resid(r9))
+plot(resid(r9) ~ fitted(r9))
+
+#Results
+#Cluster 1
+#r9 <- lme(log(mrelreads) ~ scr2_ef + scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 2
+#r9 <- lme(mrelreads ~ log(NO3) + diversity + totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 3
+#r9 <- lme(mrelreads ~ soil_N + soil_pH_KCl + diversity + scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 4
+#r9 <- lme(mrelreads ~ tscr3_trend, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 5
+# r9 <- lme(mrelreads ~ soil_N + soil_C_org + ttotal_biomass, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 6
+#r9 <- lme(log(mrelreads) ~ scr3, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 7
+# r9 <- lme(mrelreads ~ tdiv_trend + scr2_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 8
+#r9 <- lme(log(mrelreads+0.001) ~ soil_pH_KCl + tscr1_trend + scr1_ef + scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 9
+#r9 <- lme(log(mrelreads+0.001) ~ scr3_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
+#Cluster 10
+#r9 <- lme(log(mrelreads+0.001) ~ log(NO3) + soil_pH_KCl + ttotal_biomass, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit)
