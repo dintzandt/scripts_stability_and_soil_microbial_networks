@@ -1,0 +1,408 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R/Microbial") #PC
+
+library("phyloseq")
+library("vegan")
+library("DESeq2")
+library("ggplot2")
+library("dendextend")
+library("tidyr")
+library("viridis")
+library("reshape")
+library("plyr")
+library("stringr")
+library("metagMisc")
+library("igraph")
+library(cowplot)
+library(car)
+library(nlme)
+library(sjstats)
+
+#Prep ITS data natural grassland#
+load("MData_grass_cluster_ITS.RDa")
+head(MData_grass_cluster)
+
+#Make df with clusters are separate columns
+#Natural grassland
+temp1 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 1),]
+temp2 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 2),]
+temp3 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 3),]
+temp4 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 4),]
+temp5 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 5),]
+temp6 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 6),]
+temp7 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 7),]
+temp8 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 8),]
+temp9 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 9),]
+temp10 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 10),]
+temp11 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 11),]
+temp12 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 12),]
+temp13 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 13),]
+temp14 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 14),]
+temp15 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 15),]
+temp16 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 16),]
+temp17 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 17),]
+temp18 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 18),]
+temp19 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 19),]
+temp20 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 20),]
+temp21 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 21),]
+#temp22 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 22),]
+
+Mcluster_grass <- cbind(temp1, temp2$mrelreads, temp3$mrelreads, temp4$mrelreads, temp5$mrelreads, 
+                        temp6$mrelreads, temp7$mrelreads, temp8$mrelreads, temp9$mrelreads, temp10$mrelreads,
+                        temp11$mrelreads, temp12$mrelreads, temp13$mrelreads, temp14$mrelreads, temp15$mrelreads,
+                        temp16$mrelreads, temp17$mrelreads, temp18$mrelreads, temp19$mrelreads, temp20$mrelreads,
+                        temp21$mrelreads)
+colnames(Mcluster_grass)[c(93:113)] <- c("c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10",
+                                         "c11", "c12", "c13", "c14", "c15", "c16", "c17", "c18", "c19", "c20",
+                                         "c21")
+#For stats
+Mcluster_grass$seed_density <- factor(Mcluster_grass$seed_density)
+
+#Transform clusters
+Mcluster_grass$c1_log <-log(Mcluster_grass$c1)
+Mcluster_grass$c2_log <-log(Mcluster_grass$c2)
+Mcluster_grass$c3_log <-log(Mcluster_grass$c3)
+Mcluster_grass$c4_log <-log(Mcluster_grass$c4)
+Mcluster_grass$c5_log <-log(Mcluster_grass$c5)
+Mcluster_grass$c6_log <-log(Mcluster_grass$c6)
+Mcluster_grass$c7_log <-log(Mcluster_grass$c7)
+Mcluster_grass$c8_log <-log(Mcluster_grass$c8+0.001)
+Mcluster_grass$c9_log <-log(Mcluster_grass$c9)
+Mcluster_grass$c10_log <-log(Mcluster_grass$c10)
+Mcluster_grass$c11_log <-log(Mcluster_grass$c11)
+Mcluster_grass$c12_log <-log(Mcluster_grass$c12)
+Mcluster_grass$c13_log <-log(Mcluster_grass$c13)
+Mcluster_grass$c14_log <-log(Mcluster_grass$c14)
+Mcluster_grass$c15_log <-log(Mcluster_grass$c15)
+Mcluster_grass$c16_log <-log(Mcluster_grass$c16)
+Mcluster_grass$c17_log <-log(Mcluster_grass$c17)
+Mcluster_grass$c18_log <-log(Mcluster_grass$c18)
+Mcluster_grass$c19_log <-log(Mcluster_grass$c19)
+Mcluster_grass$c20_log <-log(Mcluster_grass$c20+0.001)
+Mcluster_grass$c21_log <-log(Mcluster_grass$c21+0.001)
+
+Mcluster_grass_ITS <- Mcluster_grass
+#save(Mcluster_grass_ITS, file = "Mcluster_grass_ITS.RDa")
+
+#Prep 16S natural grassland#
+load("MData_grass_cluster_16S.RDa")
+load("MData_aban_cluster_16S.RDa")
+
+head(MData_grass_cluster)
+
+#Make df with clusters are separate columns
+#Natural grassland
+temp1 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 1),]
+temp2 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 2),]
+temp3 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 3),]
+temp4 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 4),]
+temp5 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 5),]
+temp6 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 6),]
+temp7 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 7),]
+temp8 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 8),]
+temp9 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 9),]
+Mcluster_grass <- cbind(temp1, temp2$mrelreads, temp3$mrelreads, temp4$mrelreads, temp5$mrelreads, 
+                        temp6$mrelreads, temp7$mrelreads, temp8$mrelreads, temp9$mrelreads)
+colnames(Mcluster_grass)[93:101] <- c("c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9")
+
+#For stats
+Mcluster_grass$seed_density <- factor(Mcluster_grass$seed_density)
+
+#Transform clusters
+Mcluster_grass$c1_log <-log(Mcluster_grass$c1)
+Mcluster_grass$c3_log <-log(Mcluster_grass$c3)
+Mcluster_grass$c4_log <-log(Mcluster_grass$c4)
+Mcluster_grass$c5_log <-log(Mcluster_grass$c5)
+Mcluster_grass$c6_log <-log(Mcluster_grass$c6)
+Mcluster_grass$c8_log <-log(Mcluster_grass$c8+0.001)
+Mcluster_grass$c9_log <-log(Mcluster_grass$c9+0.001)
+
+Mcluster_grass_16S <- Mcluster_grass
+#save(Mcluster_grass_16S, file = "Mcluster_grass_16S.RDa")
+
+#Merge Mclusters
+head(Mcluster_grass_ITS)
+head(Mcluster_grass_16S)
+    
+a <- Mcluster_grass_ITS[which(colnames(Mcluster_grass_ITS) %in% c("soil", "seed_density", "rep", "c1_log", "c2_log", "c3_log", "c4_log", "c5_log", "c6_log", "c7_log", "c8_log", "c9_log", "c10_log",
+                                                                    "c11_log", "c12_log", "c13_log", "c14_log", "c15_log", "c16_log", "c17_log", "c18_log", "c19_log", "c20_log", "c21_log"))]
+b <- Mcluster_grass_16S[which(colnames(Mcluster_grass_16S) %in% c("soil", "seed_density", "rep", "c1_log", "c2", "c3_log", "c4_log", "c5_log", "c6_log", "c7", "c8_log", "c9_log"))]
+colnames(a) <- c("soil", "seed_density", "rep", "ITS1", "ITS2", "ITS3", "ITS4", "ITS5", "ITS6", "ITS7", "ITS8", "ITS9", "ITS10",
+                     "ITS11", "ITS12", "ITS13", "ITS14", "ITS15", "ITS16", "ITS17", "ITS18", "ITS19", "ITS20", "ITS21")
+colnames(b) <- c("soil", "seed_density", "rep", "16S1", "16S2", "16S3", "16S4", "16S5", "16S6", "16S7", "16S8", "16S9")
+Mcluster_grass_both <- merge(a, b, by = c("soil", "seed_density", "rep"))
+    
+#Make M
+M <- cor(Mcluster_grass_both[,4:33],use="p")
+    
+#Loop
+p.value <-list()
+R2.value <- list()
+for (i in c("16S1", "16S2", "16S3", "16S4", "16S5", "16S6", "16S7", "16S8", "16S9","ITS1", "ITS2", "ITS3", "ITS4", "ITS5", "ITS6", "ITS7", "ITS8", "ITS9", "ITS10",
+                "ITS11", "ITS12", "ITS13", "ITS14", "ITS15", "ITS16", "ITS17", "ITS18", "ITS19", "ITS20", "ITS21")) {
+  for (j in c("16S1", "16S2", "16S3", "16S4", "16S5", "16S6", "16S7", "16S8", "16S9", "ITS1", "ITS2", "ITS3", "ITS4", "ITS5", "ITS6", "ITS7", "ITS8", "ITS9", "ITS10",
+                  "ITS11", "ITS12", "ITS13", "ITS14", "ITS15", "ITS16", "ITS17", "ITS18", "ITS19", "ITS20", "ITS21")) {
+    tryCatch({
+          
+      tmp <- Mcluster_grass_both[, c(i, j, "seed_density")]
+      variabley <- tmp[,1]
+      variablex <- tmp[,2]
+      fit <- lme(variabley ~ variablex, random = ~1|seed_density, data = tmp)
+      p.value[[paste(i,j, sep = "_")]] <- Anova(fit, type=3)[2,3]
+      R2.value[[paste(i,j, sep = "_")]] <- extract_numeric(performance::r2(fit)$R2_marginal)
+          
+    }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")},
+      p.value[[paste(i,j, sep = "_")]] <- NA,
+      R2.value[[paste(i,j, sep = "_")]] <- NA)
+    }
+  }
+    
+p.value
+R2.value
+    
+#To matrix
+tmp_p <- melt(p.value)
+tmp_R2 <- melt(R2.value)
+m_p <- matrix(tmp_p$value, nrow=30, ncol=30, byrow=T)
+m_R2 <- matrix(tmp_R2$value, nrow=30, ncol=30, byrow=T) * sign(M)
+diag(m_p) <- NA
+diag(m_R2) <- NA
+colnames(m_p) <- c("16S 1", "16S 2", "16S 3", "16S 4", "16S 5", "16S 6", "16S 7", "16S 8", "16S 9","ITS 1", "ITS 2", "ITS 3", "ITS 4", "ITS 5", "ITS 6", "ITS 7", "ITS 8", "ITS 9", "ITS 10",
+                       "ITS 11", "ITS 12", "ITS 13", "ITS 14", "ITS 15", "ITS 16", "ITS 17", "ITS 18", "ITS 19", "ITS 20", "ITS 21")
+rownames(m_p) <- c("16S 1", "16S 2", "16S 3", "16S 4", "16S 5", "16S 6", "16S 7", "16S 8", "16S 9","ITS 1", "ITS 2", "ITS 3", "ITS 4", "ITS 5", "ITS 6", "ITS 7", "ITS 8", "ITS 9", "ITS 10",
+                       "ITS 11", "ITS 12", "ITS 13", "ITS 14", "ITS 15", "ITS 16", "ITS 17", "ITS 18", "ITS 19", "ITS 20", "ITS 21")
+colnames(m_R2) <- c("16S 1", "16S 2", "16S 3", "16S 4", "16S 5", "16S 6", "16S 7", "16S 8", "16S 9","ITS 1", "ITS 2", "ITS 3", "ITS 4", "ITS 5", "ITS 6", "ITS 7", "ITS 8", "ITS 9", "ITS 10",
+                        "ITS 11", "ITS 12", "ITS 13", "ITS 14", "ITS 15", "ITS 16", "ITS 17", "ITS 18", "ITS 19", "ITS 20", "ITS 21")
+rownames(m_R2) <- c("16S 1", "16S 2", "16S 3", "16S 4", "16S 5", "16S 6", "16S 7", "16S 8", "16S 9","ITS 1", "ITS 2", "ITS 3", "ITS 4", "ITS 5", "ITS 6", "ITS 7", "ITS 8", "ITS 9", "ITS 10",
+                        "ITS 11", "ITS 12", "ITS 13", "ITS 14", "ITS 15", "ITS 16", "ITS 17", "ITS 18", "ITS 19", "ITS 20", "ITS 21")
+    
+#To network graph
+library(igraph)
+library(cowplot)
+m_R2[m_p>0.00167] <- 0 #After Bonferoni correction 0.05/30
+network <- graph_from_adjacency_matrix(m_R2, weighted=T, mode="undirected", diag=F)
+
+#Calculate vertice sizes ITS
+load("Count_grass_ITS.RDa")
+SCount_grass <- ddply(Count_grass, c("sample", "cluster.grass"), summarise,
+                          srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_grass, c("cluster.grass"), summarise,
+                   mrelreads = mean(srelreads, na.rm=TRUE))
+vsize_grass_ITS <- vsize[1:21,]$mrelreads
+
+#Calculate vertice sizes 16S
+load("Count_grass_16S.RDa")
+SCount_grass <- ddply(Count_grass, c("sample", "cluster.grass"), summarise,
+                      srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_grass, c("cluster.grass"), summarise,
+               mrelreads = mean(srelreads, na.rm=TRUE))
+vsize_grass_16S <- vsize[1:9,]$mrelreads
+
+#Combine
+vsize_both <- c(vsize_grass_16S, vsize_grass_ITS) #16S followed by ITS
+
+#Network figure natural grassland
+E(network)$color[E(network)$weight > 0]<-"#0072B2" #now color the edges based on their values positive is steelblue
+E(network)$color[E(network)$weight < 0]<-"#D55E00"  #now color the edges based on their values
+am.coord <- layout_in_circle(network)
+par(mar = c(0.1, 0.1, 0.1, 0.1))   
+radian.rescale <- function(x, start=0, direction=1) {
+    c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+    c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+  }
+n <- 30
+lab.locs <- radian.rescale(x=1:n, direction=-1, start=0)
+plot(network, vertex.size = vsize_both, edge.width=abs(E(network)$weight)*10, edge.curved=.1, layout = am.coord,
+    vertex.color = adjustcolor(c(rep("grey30", 9), rep("grey80", 21)), alpha.f = .5),
+    vertex.frame.color = "black", 
+    vertex.label.cex=c(0.8), vertex.label=c(1:9, 1:21),  
+    vertex.label.dist=2.5, vertex.label.color=c("black"),
+    vertex.label.degree=lab.locs)
+p <- recordPlot()
+prow <- plot_grid(p, labels=c(""), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigX_Clusters_both_grass_2.png", prow,
+#          ncol = 1, nrow = 1, base_aspect_ratio = 1, dpi=600) #PC
+        
+
+#Prep ITS data abandoned arable soil
+load("MData_aban_cluster_ITS.RDa")
+temp1 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 1),]
+temp2 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 2),]
+temp3 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 3),]
+temp4 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 4),]
+temp5 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 5),]
+temp6 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 6),]
+temp7 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 7),]
+temp8 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 8),]
+temp9 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 9),]
+temp10 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 10),]
+temp11 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 11),]
+temp12 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 12),]
+temp13 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 13),]
+temp14 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 14),]
+temp15 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 15),]
+temp16 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 16),]
+temp17 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 17),]
+temp18 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 18),]
+
+Mcluster_aban <- cbind(temp1, temp2$mrelreads, temp3$mrelreads, temp4$mrelreads, temp5$mrelreads, 
+                       temp6$mrelreads, temp7$mrelreads, temp8$mrelreads, temp9$mrelreads, temp10$mrelreads,
+                       temp11$mrelreads, temp12$mrelreads, temp13$mrelreads, temp14$mrelreads, temp15$mrelreads,
+                       temp16$mrelreads, temp17$mrelreads, temp18$mrelreads)
+colnames(Mcluster_aban)[93:110] <- c("c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10",
+                                     "c11", "c12", "c13", "c14", "c15", "c16", "c17", "c18")
+
+#For stats
+Mcluster_aban$seed_density <- factor(Mcluster_aban$seed_density)
+
+#Transform clusters
+Mcluster_aban$c3_sqrt <-sqrt(Mcluster_aban$c3)
+Mcluster_aban$c4_log <-log(Mcluster_aban$c4)
+Mcluster_aban$c5_log <-log(Mcluster_aban$c5)
+Mcluster_aban$c6_log <-log(Mcluster_aban$c6)
+Mcluster_aban$c7_sqrt <-sqrt(Mcluster_aban$c7)
+Mcluster_aban$c8_log <-log(Mcluster_aban$c8+0.001)
+Mcluster_aban$c9_log <-log(Mcluster_aban$c9)
+Mcluster_aban$c10_log <-log(Mcluster_aban$c10)
+Mcluster_aban$c11_log <-log(Mcluster_aban$c11+0.001)
+Mcluster_aban$c12_log <-log(Mcluster_aban$c12)
+Mcluster_aban$c13_log <-log(Mcluster_aban$c13)
+Mcluster_aban$c14_log <-log(Mcluster_aban$c14+0.001)
+Mcluster_aban$c15_log <-log(Mcluster_aban$c15)
+Mcluster_aban$c16_log <-log(Mcluster_aban$c16+0.001)
+Mcluster_aban$c17_log <-log(Mcluster_aban$c17+0.001)
+Mcluster_aban$c18_log <-log(Mcluster_aban$c18+0.001)
+
+Mcluster_aban_ITS <- Mcluster_aban
+#save(Mcluster_aban_ITS, file = "Mcluster_aban_ITS.RDa")
+
+#Prep 16S clusters abandoned arable soil
+load("MData_aban_cluster_16S.RDa")
+temp1 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 1),]
+temp2 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 2),]
+temp3 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 3),]
+temp4 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 4),]
+temp5 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 5),]
+temp6 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 6),]
+temp7 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 7),]
+temp8 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 8),]
+temp9 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 9),]
+temp10 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 10),]
+Mcluster_aban <- cbind(temp1, temp2$mrelreads, temp3$mrelreads, temp4$mrelreads, temp5$mrelreads, 
+                       temp6$mrelreads, temp7$mrelreads, temp8$mrelreads, temp9$mrelreads, temp10$mrelreads)
+colnames(Mcluster_aban)[93:102] <- c("c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10")
+
+#For stats
+Mcluster_aban$seed_density <- factor(Mcluster_aban$seed_density)
+
+#Transform clusters
+Mcluster_aban$c6_log <-log(Mcluster_aban$c6)
+Mcluster_aban$c9_log <-log(Mcluster_aban$c9)
+Mcluster_aban$c10_log <-log(Mcluster_aban$c10+0.001)
+
+Mcluster_aban_16S <- Mcluster_aban
+#save(Mcluster_aban_16S, file = "Mcluster_aban_16S_2.0.RDa")
+
+#Merge Mclusters
+head(Mcluster_aban_ITS)
+head(Mcluster_aban_16S)
+
+a <- Mcluster_aban_ITS[which(colnames(Mcluster_aban_ITS) %in% c("soil", "seed_density", "rep", "c1", "c2", "c3_sqrt", "c4_log", "c5_log", "c6_log", "c7_sqrt", "c8_log", "c9_log", "c10_log",
+                                                                "c11_log", "c12_log", "c13_log", "c14_log", "c15_log", "c16_log", "c17_log", "c18_log"))]
+b <- Mcluster_aban_16S[which(colnames(Mcluster_aban_16S) %in% c("soil", "seed_density", "rep", "c1", "c2", "c3", "c4", "c5", "c6_log", "c7", "c8", "c9_log", "c10_log"))]
+colnames(a) <- c("soil", "seed_density", "rep", "ITS1", "ITS2", "ITS3", "ITS4", "ITS5", "ITS6", "ITS7", "ITS8", "ITS9", "ITS10",
+                 "ITS11", "ITS12", "ITS13", "ITS14", "ITS15", "ITS16", "ITS17", "ITS18")
+colnames(b) <- c("soil", "seed_density", "rep", "16S1", "16S2", "16S3", "16S4", "16S5", "16S6", "16S7", "16S8", "16S9", "16S10")
+Mcluster_aban_both <- merge(a, b, by = c("soil", "seed_density", "rep"))
+
+#Make M
+M <- cor(Mcluster_aban_both[,4:31],use="p")
+
+#Loop
+p.value <-list()
+R2.value <- list()
+for (i in c("16S1", "16S2", "16S3", "16S4", "16S5", "16S6", "16S7", "16S8", "16S9", "16S10", "ITS1", "ITS2", "ITS3", "ITS4", "ITS5", "ITS6", "ITS7", "ITS8", "ITS9", "ITS10",
+            "ITS11", "ITS12", "ITS13", "ITS14", "ITS15", "ITS16", "ITS17", "ITS18")) {
+  for (j in c("16S1", "16S2", "16S3", "16S4", "16S5", "16S6", "16S7", "16S8", "16S9", "16S10", "ITS1", "ITS2", "ITS3", "ITS4", "ITS5", "ITS6", "ITS7", "ITS8", "ITS9", "ITS10",
+              "ITS11", "ITS12", "ITS13", "ITS14", "ITS15", "ITS16", "ITS17", "ITS18")) {
+    tryCatch({
+      
+      tmp <- Mcluster_aban_both[, c(i, j, "seed_density")]
+      variabley <- tmp[,1]
+      variablex <- tmp[,2]
+      fit <- lme(variabley ~ variablex, random = ~1|seed_density, data = tmp)
+      p.value[[paste(i,j, sep = "_")]] <- Anova(fit, type=3)[2,3]
+      R2.value[[paste(i,j, sep = "_")]] <- extract_numeric(performance::r2(fit)$R2_marginal)
+      
+    }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")},
+    p.value[[paste(i,j, sep = "_")]] <- NA,
+    R2.value[[paste(i,j, sep = "_")]] <- NA)
+  }
+}
+
+p.value
+R2.value
+
+#To matrix
+tmp_p <- melt(p.value)
+tmp_R2 <- melt(R2.value)
+m_p <- matrix(tmp_p$value, nrow=28, ncol=28, byrow=T)
+m_R2 <- matrix(tmp_R2$value, nrow=28, ncol=28, byrow=T) * sign(M)
+diag(m_p) <- NA
+diag(m_R2) <- NA
+colnames(m_p) <- c("16S 1", "16S 2", "16S 3", "16S 4", "16S 5", "16S 6", "16S 7", "16S 8", "16S 9","16S 10", "ITS 1", "ITS 2", "ITS 3", "ITS 4", "ITS 5", "ITS 6", "ITS 7", "ITS 8", "ITS 9", "ITS 10",
+                   "ITS 11", "ITS 12", "ITS 13", "ITS 14", "ITS 15", "ITS 16", "ITS 17", "ITS 18")
+rownames(m_p) <- c("16S 1", "16S 2", "16S 3", "16S 4", "16S 5", "16S 6", "16S 7", "16S 8", "16S 9","16S 10", "ITS 1", "ITS 2", "ITS 3", "ITS 4", "ITS 5", "ITS 6", "ITS 7", "ITS 8", "ITS 9", "ITS 10",
+                   "ITS 11", "ITS 12", "ITS 13", "ITS 14", "ITS 15", "ITS 16", "ITS 17", "ITS 18")
+colnames(m_R2) <- c("16S 1", "16S 2", "16S 3", "16S 4", "16S 5", "16S 6", "16S 7", "16S 8", "16S 9","16S 10", "ITS 1", "ITS 2", "ITS 3", "ITS 4", "ITS 5", "ITS 6", "ITS 7", "ITS 8", "ITS 9", "ITS 10",
+                    "ITS 11", "ITS 12", "ITS 13", "ITS 14", "ITS 15", "ITS 16", "ITS 17", "ITS 18")
+rownames(m_R2) <- c("16S 1", "16S 2", "16S 3", "16S 4", "16S 5", "16S 6", "16S 7", "16S 8", "16S 9","16S 10", "ITS 1", "ITS 2", "ITS 3", "ITS 4", "ITS 5", "ITS 6", "ITS 7", "ITS 8", "ITS 9", "ITS 10",
+                    "ITS 11", "ITS 12", "ITS 13", "ITS 14", "ITS 15", "ITS 16", "ITS 17", "ITS 18")
+
+#To network graph
+m_R2[m_p>0.00179] <- 0 #After Bonferoni correction 0.05/28
+network <- graph_from_adjacency_matrix(m_R2, weighted=T, mode="undirected", diag=F)
+
+#Calculate vertice size ITS
+load("Count_aban_ITS.RDa")
+SCount_aban <- ddply(Count_aban, c("sample", "cluster.aban"), summarise,
+                     srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_aban, c("cluster.aban"), summarise,
+               mrelreads = mean(srelreads, na.rm=TRUE))
+vsize <- vsize[1:18,]$mrelreads
+
+#Calculate vertice sizes 16S
+load("Count_aban_16S.RDa")
+SCount_aban <- ddply(Count_aban, c("sample", "cluster.aban"), summarise,
+                      srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_aban, c("cluster.aban"), summarise,
+               mrelreads = mean(srelreads, na.rm=TRUE))
+vsize_aban_16S <- vsize[1:10,]$mrelreads
+
+#Combine
+vsize_both <- c(vsize_aban_16S, vsize) #16S followed by ITS
+
+#Figure abandoned arable
+E(network)$color[E(network)$weight > 0]<-"#0072B2" #now color the edges based on their values positive is steelblue
+E(network)$color[E(network)$weight < 0]<-"#D55E00" #now color the edges based on their values
+am.coord <- layout_in_circle(network)
+par(mar = c(0.1, 0.1, 0.1, 0.1))   
+radian.rescale <- function(x, start=0, direction=1) {
+    c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+    c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+  }
+n <- 28
+lab.locs <- radian.rescale(x=1:n, direction=-1, start=0)
+plot(network, vertex.size = vsize_both, edge.width=abs(E(network)$weight)*10, edge.curved=.1, layout = am.coord,
+      vertex.color = adjustcolor(c(rep("grey30", 10), rep("grey80", 21)), alpha.f = .5),
+      vertex.frame.color = "black", 
+      vertex.label.cex=c(0.8), vertex.label=c(1:10, 1:18), 
+      vertex.label.dist=2.5, vertex.label.color=c("black"),
+      vertex.label.degree=lab.locs)
+p <- recordPlot()
+prow <- plot_grid(p, labels=c(""), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigX_Clusters_both_aban_2.png", prow,
+#          ncol = 1, nrow = 1, base_aspect_ratio = 1, dpi=600)
