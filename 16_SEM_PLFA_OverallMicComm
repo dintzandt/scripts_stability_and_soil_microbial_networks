@@ -26,6 +26,15 @@ load("MData_grass_cluster_16S.RDa")
 load("MData_aban_cluster_16S.RDa")
 
 #####Run through PLFA NLFA - natural grassland#####
+#Add transformations
+MData_grass_cluster$tscr2_trend <- log(MData_grass_cluster$scr2_trend+1)
+MData_grass_cluster$tscr3_trend <- MData_grass_cluster$scr3_trend^2
+MData_grass_cluster$tdiv_trend <- sqrt(MData_grass_cluster$div_trend+1)
+MData_grass_cluster$ttotbio <- log(MData_grass_cluster$total_biomass)
+MData_grass_cluster$tAMF <- log(MData_grass_cluster$AMF)
+MData_grass_cluster$troot_DW <- log(MData_grass_cluster$root_DW)
+MData_grass_cluster$ttotbio_ef <- log(scale(MData_grass_cluster$totbio_ef)+2)
+
 #bac
 Datasem <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 1),]
 head(Datasem)
@@ -87,6 +96,16 @@ plot(resid(r9) ~ fitted(r9))
 #r9 <- lme(Shannon_ITS ~ log(soil_P) + scr2 + diversity + totbio_ef, data=Datasem, random = ~ 1 | seed_density, na.action = na.omit, weights = vf4)
 
 #####Run through PLFA NLFA - abandeoned arable#####
+#Add transformations
+MData_aban_cluster$tscr1_trend <- MData_aban_cluster$scr1_trend^2
+MData_aban_cluster$tscr2_trend <- log(MData_aban_cluster$scr2_trend+1)
+MData_aban_cluster$tscr3_trend <- MData_aban_cluster$scr3_trend^2
+MData_aban_cluster$tdiv_trend <- sqrt(MData_aban_cluster$div_trend+1)
+MData_aban_cluster$ttotal_biomass <- log(MData_aban_cluster$total_biomass)
+MData_aban_cluster$tfungi <- log(MData_aban_cluster$fungi)
+MData_aban_cluster$tAMF <- log(MData_aban_cluster$AMF)
+MData_aban_cluster$troot_DW <- sqrt(MData_aban_cluster$root_DW)
+
 Datasem <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 1),]
 head(Datasem)
 qqnorm(Datasem$bac)
