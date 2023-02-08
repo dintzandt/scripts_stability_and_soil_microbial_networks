@@ -325,3 +325,112 @@ indirect_plant
 direct_plant <- total_plant - indirect_plant
 direct_plant/sum(total_plant) * 100
 indirect_plant/sum(total_plant) * 100
+
+#Natural grassland PLFA
+natural_PLFA <- as.matrix(read.table("SEM_network_natural_PLFA_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(natural_PLFA) <-  c("bacteria", "fungi", "AMF", "tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                             "AP", "div", "scr1", "scr2", "scr3", 
+                             "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                             "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+network <- graph_from_adjacency_matrix(natural_PLFA, weighted=T, mode="directed", diag=F)
+E(network)[weight > 0]$color<-"#0072B2"
+E(network)[weight < 0]$color<-"#D55E00"
+am.coord <- layout_in_circle(network, order = rev(V(network)))
+deg <- colSums(abs(natural_PLFA)) + rowSums(abs(natural_PLFA))
+load("MData_grass_cluster_16S.RDa")
+sub <- unique(MData_grass_cluster[,c(6,80:84,87)])
+msub <- melt(sub)
+Msub <- ddply(msub, c("variable"), summarise,
+              mbio = mean(value, na.rm=TRUE))
+vsize <- c(Msub$mbio[2], Msub$mbio[1], Msub$mbio[6])
+vsize_perc <- vsize/sum(Msub$mbio[2], Msub$mbio[1]) *10
+vsize_matrix <- matrix(rep(vsize_perc,26, each = T), nrow=26, byrow=T)
+
+#Calculate contribution
+natural_plantchem <- as.matrix(read.table("SEM_network_natural_PC_full_3.0.txt", sep="\t",header=T, row.names=1))
+indirect_cluster <- colSums(abs(natural_PLFA[c(4:11),c(1:3)]) * 
+                              abs(matrix(rep(colSums(abs(natural_plantchem[,c(1:8)]/10)),3), nrow = 8, byrow=F)))
+indirect_plant <- rowSums( matrix(rep(rowSums(abs(natural_PLFA[c(4:11),c(1:3)]) * abs(vsize_matrix[c(4:11),c(1:3)])), 15), nrow=15, byrow=T)
+                           * abs(natural_plantchem[c(9:23),c(1:8)]/10))
+indirect_chem <- rowSums(abs(natural_PLFA[c(4:11),c(1:3)]) * abs(vsize_matrix[c(10:17),c(1:3)])) * colSums(abs(natural_plantchem[c(9:23),c(1:8)]/10))
+deg <- colSums(abs(natural_PLFA[12:26,])) + c(indirect_cluster, rep(0, 23)) + 
+  rowSums(abs(natural_PLFA[,1:3])*abs(vsize_matrix)) + c(rep(0, 11), indirect_plant) 
+
+#First part is the size of the fungal cluster vertices. Here we need to times the chemical contribution by the plant-chem path size
+#Second the size of the clusters
+#Now replace the chemical part by the overall indirect effects per chemical parameter
+deg[4:11] <- indirect_chem
+
+#Figure
+par(mar = c(0.1, 0.1, 0.1, 0.1))
+radian.rescale <- function(x, start=0, direction=1) {
+  c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+  c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
+n <- 26
+lab.locs <- radian.rescale(x=1:n, direction=1, start=0)
+plot(network, vertex.size = deg*1, edge.width=abs(E(network)$weight)*0.4, edge.curved=.1, layout = am.coord,
+     vertex.color = adjustcolor(c(rep("grey20", 3), rep("grey80", 7), rep("darkgreen", 16)), alpha.f = .5), vertex.frame.color = "white", vertex.label.font=1, 
+     vertex.label.color= c("black"),
+     vertex.label.degree=lab.locs, vertex.label.dist=1.25,
+     vertex.label.cex=c(0.6))
+p <- recordPlot()
+prow <- plot_grid(p, labels=c(""), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigX_full_PLFA_SEM_natural_3.0_vsize.png", prow,
+#          ncol = 1, nrow = 1, base_aspect_ratio = 1, dpi=600) #PC
+
+#Abandoned arable PLFA
+aban_PLFA <- as.matrix(read.table("SEM_network_abandoned_PLFA_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(aban_PLFA) <-  c("bacteria", "fungi", "AMF", "tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                          "AP", "div", "scr1", "scr2", "scr3", 
+                          "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                          "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+network <- graph_from_adjacency_matrix(aban_PLFA, weighted=T, mode="directed", diag=F)
+E(network)[weight > 0]$color<-"#0072B2"
+E(network)[weight < 0]$color<-"#D55E00"
+am.coord <- layout_in_circle(network, order = rev(V(network)))
+deg <- colSums(abs(aban_PLFA)) + rowSums(abs(aban_PLFA))
+load("MData_aban_cluster_16S.Rda")
+colnames(MData_aban_cluster)
+sub <- unique(MData_aban_cluster[,c(5,79:83,86)])
+msub <- melt(sub)
+Msub <- ddply(msub, c("variable"), summarise,
+              mbio = mean(value, na.rm=TRUE))
+vsize <- c(Msub$mbio[2], Msub$mbio[1], Msub$mbio[6])
+vsize_perc <- vsize/sum(Msub$mbio[2], Msub$mbio[1]) *10
+vsize_matrix <- matrix(rep(vsize_perc,26, each = T), nrow=26, byrow=T)
+
+#Calculate contribution
+aban_plantchem <- as.matrix(read.table("SEM_network_abandoned_PC_full_3.0.txt", sep="\t",header=T, row.names=1))
+indirect_cluster <- colSums(abs(aban_PLFA[c(4:11),c(1:3)]) * 
+                              abs(matrix(rep(colSums(abs(aban_plantchem[,c(1:8)]/10)),3), nrow = 8, byrow=F)))
+indirect_plant <- rowSums( matrix(rep(rowSums(abs(aban_PLFA[c(4:11),c(1:3)]) * abs(vsize_matrix[c(4:11),c(1:3)])), 15), nrow=15, byrow=T)
+                           * abs(aban_plantchem[c(9:23),c(1:8)]/10))
+indirect_chem <- rowSums(abs(aban_PLFA[c(4:11),c(1:3)]) * abs(vsize_matrix[c(10:17),c(1:3)])) * colSums(abs(aban_plantchem[c(9:23),c(1:8)]/10))
+deg <- colSums(abs(aban_PLFA[12:26,])) + c(indirect_cluster, rep(0, 23)) + 
+  rowSums(abs(aban_PLFA[,1:3])*abs(vsize_matrix)) + c(rep(0, 11), indirect_plant) 
+
+#First part is the size of the fungal cluster vertices. Here we need to times the chemical contribution by the plant-chem path size
+#Second the size of the clusters
+#Now replace the chemical part by the overall indirect effects per chemical parameter
+deg[4:11] <- indirect_chem
+
+#Figure
+par(mar = c(0.1, 0.1, 0.1, 0.1))
+radian.rescale <- function(x, start=0, direction=1) {
+  c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+  c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
+n <- 26
+lab.locs <- radian.rescale(x=1:n, direction=1, start=0)
+plot(network, vertex.size = deg*1, edge.width=abs(E(network)$weight)*0.4, edge.curved=.1, layout = am.coord,
+     vertex.color = adjustcolor(c(rep("grey20", 3), rep("grey80", 7), rep("darkgreen", 16)), alpha.f = .5), vertex.frame.color = "white", vertex.label.font=1, 
+     vertex.label.color=c("black"),
+     vertex.label.degree=lab.locs, vertex.label.dist=1.25,
+     vertex.label.cex=c(0.6))
+p <- recordPlot()
+prow <- plot_grid(p, labels=c(""), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigX_full_PLFA_SEM_abandoned_3.0_vsize.png", prow,
+#          ncol = 1, nrow = 1, base_aspect_ratio = 1, dpi=600)
