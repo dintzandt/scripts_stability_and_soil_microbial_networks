@@ -1,0 +1,327 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R/Microbial") #PC
+
+library("phyloseq")
+library("vegan")
+library("DESeq2")
+library("ggplot2")
+library("dendextend")
+library("tidyr")
+library("viridis")
+library("reshape")
+library("plyr")
+library("stringr")
+library("metagMisc")
+library("igraph")
+library(cowplot)
+library(car)
+library(nlme)
+library(sjstats)
+
+par(mfrow = c(1, 1))
+###################################################PLANT-CHEM PATHWAYS########################################
+#Natural grassland
+natural_PC <- as.matrix(read.table("SEM_network_natural_PC_full_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(natural_PC) <-  c("tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                           "AP", "div", "scr1", "scr2", "scr3", 
+                           "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                           "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+network <- graph_from_adjacency_matrix(natural_PC, weighted=T, mode="directed", diag=F)
+E(network)[weight > 0]$color<-"#0072B2"
+E(network)[weight < 0]$color<-"#D55E00"
+am.coord <- layout_in_circle(network, order = rev(V(network)))
+deg <- colSums(abs(natural_PC)) + rowSums(abs(natural_PC))
+deg_cor <- c(deg[1:8]/15, deg[9:23]/8) #Number of pathways affecting them #What to do with root bio?
+par(mar = c(0.1, 0.1, 0.1, 0.1))
+radian.rescale <- function(x, start=0, direction=1) {
+  c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+  c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
+n <- 23
+lab.locs <- radian.rescale(x=1:n, direction=1, start=0)
+plot(network, vertex.size = deg_cor*10, edge.width=abs(E(network)$weight)*0.4, edge.curved=.1, layout = am.coord,
+      vertex.color = adjustcolor(c(rep("grey80", 8), rep("darkgreen", 15)), alpha.f = .5), vertex.frame.color = "white", vertex.label.font=1, 
+      vertex.label.color="black", vertex.label.degree=lab.locs, vertex.label.dist=1,
+      vertex.label.cex=c(0.6))
+p <- recordPlot()
+prow <- plot_grid(p, labels=c(""), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigX_natural_PC_3.0_cor.png", prow,
+#          ncol = 1, nrow = 1, base_aspect_ratio = 1, dpi=600) #PC
+    
+#Abandoned arable
+abandoned_PC <- as.matrix(read.table("SEM_network_abandoned_PC_full_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(abandoned_PC) <-  c("tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                                 "AP", "div", "scr1", "scr2", "scr3", 
+                                 "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                                 "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+network <- graph_from_adjacency_matrix(abandoned_PC, weighted=T, mode="directed", diag=F)
+E(network)[weight > 0]$color<-"#0072B2"
+E(network)[weight < 0]$color<-"#D55E00"
+am.coord <- layout_in_circle(network, order = rev(V(network)))
+deg <- colSums(abs(abandoned_PC)) + rowSums(abs(abandoned_PC))
+deg_cor <- c(deg[1:8]/13, deg[9:23]/8)
+par(mar = c(0.1, 0.1, 0.1, 0.1))
+radian.rescale <- function(x, start=0, direction=1) {
+  c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+  c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
+n <- 23
+lab.locs <- radian.rescale(x=1:n, direction=1, start=0)
+plot(network, vertex.size = deg_cor*10, edge.width=abs(E(network)$weight)*0.4, edge.curved=.1, layout = am.coord,
+    vertex.color = adjustcolor(c(rep("grey80", 8), rep("darkgreen", 13)), alpha.f = .5), vertex.frame.color = "white", vertex.label.font=1, 
+    vertex.label.color="black", vertex.label.degree=lab.locs, vertex.label.dist=1.25,
+    vertex.label.cex=c(0.6))
+p <- recordPlot()
+prow <- plot_grid(p, labels=c(""), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigX_abandoned_PC_3.0_cor.png", prow,
+#          ncol = 1, nrow = 1, base_aspect_ratio = 1, dpi=600) #PC
+        
+#16S Natural grassland
+natural_16S <- as.matrix(read.table("SEM_network_natural_16S_full_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(natural_16S) <-  c(1:9, "tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                            "AP", "div", "scr1", "scr2", "scr3", 
+                            "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                            "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+network <- graph_from_adjacency_matrix(natural_16S, weighted=T, mode="directed", diag=F)
+E(network)[weight > 0]$color<-"#0072B2"
+E(network)[weight < 0]$color<-"#D55E00"
+am.coord <- layout_in_circle(network, order = rev(V(network)))
+deg <- colSums(abs(natural_16S)) + rowSums(abs(natural_16S))
+load("Count_grass_16S.RDa")
+SCount_grass <- ddply(Count_grass, c("sample", "cluster.grass"), summarise,
+                srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_grass, c("cluster.grass"), summarise,
+              mrelreads = mean(srelreads, na.rm=TRUE))
+vsize <- vsize[1:9,]$mrelreads
+vsize_perc <- vsize/sum(vsize) *10
+vsize_matrix <- matrix(rep(vsize_perc,32, each = T), nrow=32, byrow=T)
+
+#Calculate pathway contributions
+natural_plantchem <- as.matrix(read.table("SEM_network_natural_PC_full_3.0.txt", sep="\t",header=T, row.names=1))
+indirect_cluster <- colSums(abs(natural_16S[c(10:17),c(1:9)]) * 
+                             abs(matrix(rep(colSums(abs(natural_plantchem[,c(1:8)]/10)),9), nrow = 8, byrow=F)))
+indirect_plant <- rowSums( matrix(rep(rowSums(abs(natural_16S[c(10:17),c(1:9)]) * abs(vsize_matrix[c(10:17),c(1:9)])), 15), nrow=15, byrow=T)
+                         * abs(natural_plantchem[c(9:23),c(1:8)]/10))
+indirect_chem <- rowSums(abs(natural_16S[c(10:17),c(1:9)]) * abs(vsize_matrix[c(10:17),c(1:9)])) * colSums(abs(natural_plantchem[c(9:21),c(1:8)]/10))
+deg <- colSums(abs(natural_16S[18:32,])) + c(indirect_cluster, rep(0, 23)) + 
+      rowSums(abs(natural_16S[,1:9])*abs(vsize_matrix)) + c(rep(0, 17), indirect_plant) 
+  
+#First part is the size of the network cluster vertices. Need to times the chemical contribution by the plant-chem path size
+#Second the size of the clusters
+#Now replace the chemical part by the overall indirect effects per chemical parameter
+deg[10:17] <- indirect_chem
+
+#Figure
+par(mar = c(0.1, 0.1, 0.1, 0.1))
+radian.rescale <- function(x, start=0, direction=1) {
+    c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+    c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
+n <- 32
+lab.locs <- radian.rescale(x=1:n, direction=1, start=0)
+vertex.label.font=c(1, 2, 1, 2, 1, 2, 1, 2, 1)
+plot(network, vertex.size = deg*1, edge.width=abs(E(network)$weight)*0.4, edge.curved=.1, layout = am.coord,
+    vertex.color = adjustcolor(c(rep("grey20", 9), rep("grey80", 7), rep("darkgreen", 16)), alpha.f = .5), vertex.frame.color = "white", 
+    vertex.label.color=c("black"), 
+    vertex.label.degree=lab.locs, vertex.label.dist=1.25,
+    vertex.label.cex=c(0.6))
+p <- recordPlot()
+prow <- plot_grid(p, labels=c(""), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigX_full_16S_SEM_natural_3.0_vsize.png", prow,
+#           ncol = 1, nrow = 1, base_aspect_ratio = 1, dpi=600) #PC
+
+#Relative contributions 
+deg[18:32]/sum(deg[18:32])*100
+total_plant <- deg[18:32]
+indirect_plant
+direct_plant <- total_plant - indirect_plant
+direct_plant/sum(total_plant) * 100
+indirect_plant/sum(total_plant) * 100
+        
+#Abondoned arable 16S
+aban_16S <- as.matrix(read.table("SEM_network_abandoned_16S_full_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(aban_16S) <-  c(1:10, "tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                         "AP", "div", "scr1", "scr2", "scr3", 
+                         "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                         "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+network <- graph_from_adjacency_matrix(aban_16S, weighted=T, mode="directed", diag=F)
+E(network)[weight > 0]$color<-"#0072B2"
+E(network)[weight < 0]$color<-"#D55E00"
+am.coord <- layout_in_circle(network, order = rev(V(network)))
+deg <- colSums(abs(aban_16S)) + rowSums(abs(aban_16S))
+load("Count_aban_16S.RDa")
+SCount_aban <- ddply(Count_aban, c("sample", "cluster.aban"), summarise,
+                srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_aban, c("cluster.aban"), summarise,
+            mrelreads = mean(srelreads, na.rm=TRUE))
+vsize <- vsize[1:10,]$mrelreads
+vsize_perc <- vsize/sum(vsize) *10
+vsize_matrix <- matrix(rep(vsize_perc,33, each = T), nrow=33, byrow=T)
+
+#Calculate contribution
+aban_plantchem <- as.matrix(read.table("SEM_network_abandoned_PC_full_3.0.txt", sep="\t",header=T, row.names=1))
+indirect_cluster <- colSums(abs(aban_16S[c(11:18),c(1:10)]) * 
+                             abs(matrix(rep(colSums(abs(aban_plantchem[,c(1:8)]/10)),10), nrow = 8, byrow=F)))
+indirect_plant <- rowSums( matrix(rep(rowSums(abs(aban_16S[c(11:18),c(1:10)]) * abs(vsize_matrix[c(11:18),c(1:10)])), 15), nrow=15, byrow=T)
+                          * abs(aban_plantchem[c(9:23),c(1:8)]/10))
+indirect_chem <- rowSums(abs(aban_16S[c(11:18),c(1:10)]) * abs(vsize_matrix[c(11:18),c(1:10)])) * colSums(abs(aban_plantchem[c(9:23),c(1:8)]/10))
+deg <- colSums(abs(aban_16S[19:33,])) + c(indirect_cluster, rep(0, 23)) + 
+rowSums(abs(aban_16S[,1:10])*abs(vsize_matrix)) + c(rep(0, 18), indirect_plant) 
+
+#First part is the size of the network cluster vertices. Here we need to times the chemical contribution by the plant-chem path size
+#Second the size of the clusters
+#Now replace the chemical part by the overall indirect effects per chemical parameter
+deg[11:18] <- indirect_chem
+
+#Figure
+par(mar = c(0.1, 0.1, 0.1, 0.1))
+radian.rescale <- function(x, start=0, direction=1) {
+  c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+  c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
+n <- 33
+lab.locs <- radian.rescale(x=1:n, direction=1, start=0)
+plot(network, vertex.size = deg*1, edge.width=abs(E(network)$weight)*0.4, edge.curved=.1, layout = am.coord,
+      vertex.color = adjustcolor(c(rep("grey20", 10), rep("grey80", 7), rep("darkgreen", 16)), alpha.f = .5), vertex.frame.color = "white", 
+      vertex.label.color=c("black"),
+      vertex.label.degree=lab.locs, vertex.label.dist=1.25,
+      vertex.label.cex=c(0.6))
+p <- recordPlot()
+prow <- plot_grid(p, labels=c(""), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigX_full_16S_SEM_abandoned_3.0_vsize.png", prow,
+#          ncol = 1, nrow = 1, base_aspect_ratio = 1, dpi=600) #PC
+
+#Relative contribution
+deg[19:33]/sum(deg[19:33])*100
+total_plant <- deg[19:33]
+indirect_plant
+direct_plant <- total_plant - indirect_plant
+direct_plant/sum(total_plant) * 100
+indirect_plant/sum(total_plant) * 100          
+            
+#Natural grassland ITS
+natural_ITS <- as.matrix(read.table("SEM_network_natural_ITS_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(natural_ITS) <-  c(1:21, "tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                            "AP", "div", "scr1", "scr2", "scr3", 
+                            "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                            "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+network <- graph_from_adjacency_matrix(natural_ITS, weighted=T, mode="directed", diag=F)
+E(network)[weight > 0]$color<-"#0072B2"
+E(network)[weight < 0]$color<-"#D55E00"
+am.coord <- layout_in_circle(network, order = rev(V(network)))
+deg <- colSums(abs(natural_ITS)) + rowSums(abs(natural_ITS))
+load("Count_grass_ITS.Rda")
+SCount_grass <- ddply(Count_grass, c("sample", "cluster.grass"), summarise,
+                      srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_grass, c("cluster.grass"), summarise,
+               mrelreads = mean(srelreads, na.rm=TRUE))
+vsize <- vsize[1:21,]$mrelreads
+vsize_perc <- vsize/sum(vsize) *10
+vsize_matrix <- matrix(rep(vsize_perc,44, each = T), nrow=44, byrow=T)
+
+#Calculate contribution
+natural_plantchem <- as.matrix(read.table("SEM_network_natural_PC_full_3.0.txt", sep="\t",header=T, row.names=1))
+indirect_cluster <- colSums(abs(natural_ITS[c(22:29),c(1:21)]) * 
+                              abs(matrix(rep(colSums(abs(natural_plantchem[,c(1:8)]/10)),21), nrow = 8, byrow=F)))
+indirect_plant <- rowSums( matrix(rep(rowSums(abs(natural_ITS[c(22:29),c(1:21)]) * abs(vsize_matrix[c(22:29),c(1:21)])), 15), nrow=15, byrow=T)
+                           * abs(natural_plantchem[c(9:23),c(1:8)]/10))
+indirect_chem <- rowSums(abs(natural_ITS[c(22:29),c(1:21)]) * abs(vsize_matrix[c(22:29),c(1:21)])) * colSums(abs(natural_plantchem[c(9:23),c(1:8)]/10))
+deg <- colSums(abs(natural_ITS[30:44,])) + c(indirect_cluster, rep(0, 23)) + 
+  rowSums(abs(natural_ITS[,1:21])*abs(vsize_matrix)) + c(rep(0, 29), indirect_plant) 
+
+#First part is the size of the fungal cluster vertices. Here we need to times the chemical contribution by the plant-chem path size
+#Second the size of the clusters
+#Now replace the chemical part by the overall indirect effects per chemical parameter
+deg[22:29] <- indirect_chem
+
+#Figure
+par(mar = c(0.1, 0.1, 0.1, 0.1))
+radian.rescale <- function(x, start=0, direction=1) {
+  c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+  c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
+n <- 44
+lab.locs <- radian.rescale(x=1:n, direction=1, start=0)
+plot(network, vertex.size = deg*1, edge.width=abs(E(network)$weight)*0.4, edge.curved=.1, layout = am.coord,
+     vertex.color = adjustcolor(c(rep("black", 21), rep("grey80", 7), rep("darkgreen", 16)), alpha.f = .5), vertex.frame.color = "white", 
+     vertex.label.degree=lab.locs, vertex.label.dist=1,
+     vertex.label.cex=c(0.6))
+p <- recordPlot()
+prow <- plot_grid(p, labels=c(""), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigX_full_ITS_SEM_natural_3.0_vsize.png", prow,
+#        ncol = 1, nrow = 1, base_aspect_ratio = 1, dpi=600) #PC
+
+#Relative sizes of plant factors
+deg[30:44]/sum(deg[30:44])*100
+total_plant <- deg[30:44]
+indirect_plant
+direct_plant <- total_plant - indirect_plant
+direct_plant/sum(total_plant) * 100
+indirect_plant/sum(total_plant) * 100
+
+#Abandoned arable ITS
+aban_ITS <- as.matrix(read.table("SEM_network_abandoned_ITS_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(aban_ITS) <-  c(1:18, "tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                         "AP", "div", "scr1", "scr2", "scr3", 
+                         "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                         "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+network <- graph_from_adjacency_matrix(aban_ITS, weighted=T, mode="directed", diag=F)
+E(network)[weight > 0]$color<-"#0072B2"
+E(network)[weight < 0]$color<-"#D55E00"
+am.coord <- layout_in_circle(network, order = rev(V(network)))
+deg <- colSums(abs(aban_ITS)) + rowSums(abs(aban_ITS))
+load("Count_aban_ITS.Rda")
+SCount_aban <- ddply(Count_aban, c("sample", "cluster.aban"), summarise,
+                     srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_aban, c("cluster.aban"), summarise,
+               mrelreads = mean(srelreads, na.rm=TRUE))
+vsize <- vsize[1:18,]$mrelreads
+vsize_perc <- vsize/sum(vsize) *10
+vsize_matrix <- matrix(rep(vsize_perc,41, each = T), nrow=41, byrow=T)
+
+#Calculate contribution
+aban_plantchem <- as.matrix(read.table("SEM_network_abandoned_PC_full_3.0.txt", sep="\t",header=T, row.names=1))
+indirect_cluster <- colSums(abs(aban_ITS[c(19:26),c(1:18)]) * 
+                              abs(matrix(rep(colSums(abs(aban_plantchem[,c(1:8)]/10)),18), nrow = 8, byrow=F)))
+indirect_plant <- rowSums( matrix(rep(rowSums(abs(aban_ITS[c(19:26),c(1:18)]) * abs(vsize_matrix[c(19:26),c(1:18)])), 15), nrow=15, byrow=T)
+                           * abs(aban_plantchem[c(9:23),c(1:8)]/10))
+indirect_chem <- rowSums(abs(aban_ITS[c(19:26),c(1:18)]) * abs(vsize_matrix[c(19:26),c(1:18)])) * colSums(abs(aban_plantchem[c(9:23),c(1:8)]/10))
+deg <- colSums(abs(aban_ITS[27:41,])) + c(indirect_cluster, rep(0, 23)) + 
+  rowSums(abs(aban_ITS[,1:18])*abs(vsize_matrix)) + c(rep(0, 26), indirect_plant) #18+17 columns percentage average relative read count cluster (%)
+
+#First part is the size of the fungal cluster vertices. Here we need to times the chemical contribution by the plant-chem path size
+#Now replace the chemical part by the overall indirect effects per chemical parameter
+deg[19:26] <- indirect_chem
+
+#Figure
+par(mar = c(0.1, 0.1, 0.1, 0.1))
+radian.rescale <- function(x, start=0, direction=1) {
+  c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+  c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
+n <- 41
+lab.locs <- radian.rescale(x=1:n, direction=1, start=0)
+plot(network, vertex.size = deg*1, edge.width=abs(E(network)$weight)*0.4, edge.curved=.1, layout = am.coord,
+     vertex.color = adjustcolor(c(rep("black", 18), rep("grey80", 7), rep("darkgreen", 16)), alpha.f = .5), vertex.frame.color = "white", 
+     vertex.label.color=c("black"),
+     vertex.label.degree=lab.locs, vertex.label.dist=1.25,
+     vertex.label.cex=c(0.6))
+p <- recordPlot()
+prow <- plot_grid(p, labels=c(""), align="hv", label_size=12, vjust=1.1, rel_heights = c(1,2))
+prow
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/FigX_full_ITS_SEM_aban_3.0_vsize.png", prow,
+#          ncol = 1, nrow = 1, base_aspect_ratio = 1, dpi=600) #PC
+
+#Relative contribition
+deg[27:41]/sum(deg[27:41])*100
+total_plant <- deg[27:41]
+indirect_plant
+direct_plant <- total_plant - indirect_plant
+direct_plant/sum(total_plant) * 100
+indirect_plant/sum(total_plant) * 100
