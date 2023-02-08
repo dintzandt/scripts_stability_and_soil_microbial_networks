@@ -1,0 +1,41 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R/Microbial") #PC
+
+library("ggplot2")
+library(cowplot)
+
+#Read in data
+data <- read.table("Overview_SEM_effects_together_4.0.txt", sep="\t",header=T)[-11]
+head(data)
+str(data)
+data$soil <- as.factor(data$soil)
+data$pool <- as.factor(data$pool)
+data$soil_pool <- as.factor(paste(data$soil, data$pool, sep = "_"))
+data$plant.para <- as.factor(data$plant.para)
+data$soil <- factor(data$soil, levels=c("Natural grassland", "Abandoned arable"), ordered=TRUE)
+data$pool <- factor(data$pool, levels=c("Microbial biomass", "Prokaryote clusters", "Fungal clusters"), ordered=TRUE)
+data$plant.para <- factor(data$plant.para, levels=c("2019-overall-direct", "2019-overall-indirect", "2019-composition-direct", "2019-composition-indirect",
+                                                    "past-overall-direct", "past-overall-indirect", "past-composition-direct", "past-composition-indirect"), ordered=TRUE)
+
+#Make figure with stacked bars
+pairPalette <- c("#1F78B4","#A6CEE3", "#33A02C","#B2DF8A",  "#E31A1C", "#FB9A99",
+                 "#FF7F00","#FDBF6F",  "#6A3D9A","#CAB2D6",  "#B15928", "#FFFF99", "black")
+
+plot <- ggplot(data, aes(x=pool, y=perc, fill=plant.para)) +
+  facet_grid(~ soil) +
+  geom_bar(width=0.6, stat="identity") +
+  theme_bw() +
+  guides(fill=guide_legend(title="Plant community effector")) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1), legend.title=element_text(size=10)) +
+  labs(x= "" , y="% relative contribution")+
+  #scale_fill_brewer(palette = "Paired")+
+  scale_fill_manual(values=pairPalette)
+plot
+
+#Save plot
+prowAB <- plot_grid(plot)
+prowAB
+
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/Fig_overview_SEM_together_4.0.png", prowAB,
+#          ncol = 1, nrow = 1, base_aspect_ratio = 1.5, dpi=600) #PC
