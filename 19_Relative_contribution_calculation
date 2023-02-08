@@ -1,0 +1,322 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R/Microbial") #PC
+
+library("phyloseq")
+library("vegan")
+library("DESeq2")
+library("ggplot2")
+library("dendextend")
+library("tidyr")
+library("viridis")
+library("reshape")
+library("plyr")
+library("stringr")
+library("metagMisc")
+library("igraph")
+library(cowplot)
+library(car)
+library(nlme)
+library(sjstats)
+
+#Natural grassland 16S
+natural_plantchem <- as.matrix(read.table("SEM_network_natural_PC_full_3.0.txt", sep="\t",header=T, row.names=1))[-c(1:7),]
+natural_16S <- as.matrix(read.table("SEM_network_natural_16S_full_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(natural_16S) <-  c(1:9, "tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                            "AP", "div", "scr1", "scr2", "scr3", 
+                            "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                            "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+
+#Relative size clusters
+load("Count_grass_16S.Rda")
+SCount_grass <- ddply(Count_grass, c("sample", "cluster.grass"), summarise,
+                      srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_grass, c("cluster.grass"), summarise,
+               mrelreads = mean(srelreads, na.rm=TRUE))
+vsize$perc <- vsize$mrelreads/sum(vsize$mrelreads[1:9])
+
+#Year of sampling: Overall direct effect
+Y13_uni_direct <- sum(abs(natural_16S[c(18:19),c(1:9)]) * matrix(rep(vsize$perc[1:9],2), nrow = 2, byrow=T))
+#Year of sampling: Composition direct effect
+Y13_multi_direct <- sum(abs(natural_16S[c(20:22),c(1:9)]) * matrix(rep(vsize$perc[1:9],3), nrow = 3, byrow=T))
+#Past: Diversity development and invasion direct effect
+Ydev_uni_direct <- sum(abs(natural_16S[c(23:24,28:29),c(1:9)]) * matrix(rep(vsize$perc[1:9],4), nrow = 4, byrow=T))
+#Past: Compositional development and invasion direct effect
+Ydev_multi_direct <- sum(abs(natural_16S[c(25:27,30:32),c(1:9)]) * matrix(rep(vsize$perc[1:9],6), nrow = 6, byrow=T))
+
+#Year of sampling: overall INdirect effect
+chem_vsize <- abs(natural_16S[c(10:17),c(1:9)]) * matrix(rep(vsize$perc[1:9],8), nrow = 8, byrow=T)
+Y13_uni_indirect <- sum(rowSums(chem_vsize) * colSums(abs(natural_plantchem[c(2:3),c(1:8)]/10)))
+#Year of sampling: Compositional INdirect effects
+Y13_multi_indirect <- sum(rowSums(chem_vsize) * colSums(abs(natural_plantchem[c(4:6),c(1:8)]/10)))
+#Past: Overall development and invasion INdirect effect
+Ydev_uni_indirect <- sum(rowSums(chem_vsize) * colSums(abs(natural_plantchem[c(7:8,12:13),c(1:8)]/10)))
+#Past: Compositional development and invasion INdirect effect
+Ydev_multi_indirect <- sum(rowSums(chem_vsize) * colSums(abs(natural_plantchem[c(9:11,14:16),c(1:8)]/10)))
+
+#Place together
+effects_16S_grass <- data.frame(c(Y13_uni_direct, Y13_multi_direct, Ydev_uni_direct, Ydev_multi_direct, 
+                                  Y13_uni_indirect, Y13_multi_indirect, Ydev_uni_indirect, Ydev_multi_indirect))
+colnames(effects_16S_grass) <- "absolute"
+row.names(effects_16S_grass) <- c("Y13_uni_direct", "Y13_multi_direct", "Ydev_uni_direct", "Ydev_multi_direct", 
+                                  "Y13_uni_indirect", "Y13_multi_indirect", "Ydev_uni_indirect", "Ydev_multi_indirect")
+effects_16S_grass$percentage <- effects_16S_grass$absolute/sum(effects_16S_grass$absolute)*100
+effects_16S_grass
+
+#Devide by number of potential pathways
+effects_16S_grass$potential_pathways <- c(2, 3, 4, 6, 2, 3, 4, 6)
+effects_16S_grass$absolute_corr_path <- effects_16S_grass$absolute/effects_16S_grass$potential_pathways
+effects_16S_grass$percentage_corr_path <- effects_16S_grass$absolute_corr_path/sum(effects_16S_grass$absolute_corr_path)*100
+effects_16S_grass
+
+#Abandoned arable soil 16S
+aban_plantchem <- as.matrix(read.table("SEM_network_abandoned_PC_full_3.0.txt", sep="\t",header=T, row.names=1))[-c(1:7),]
+aban_16S <- as.matrix(read.table("SEM_network_abandoned_16S_full_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(aban_16S) <-  c(1:10, "tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                         "AP", "div", "scr1", "scr2", "scr3", 
+                         "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                         "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+
+#Relative size clusters
+load("Count_aban_16S.Rda")
+SCount_aban <- ddply(Count_aban, c("sample", "cluster.aban"), summarise,
+                     srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_aban, c("cluster.aban"), summarise,
+               mrelreads = mean(srelreads, na.rm=TRUE))
+vsize$perc <- vsize$mrelreads/sum(vsize$mrelreads[1:10])
+
+#Year of sampling: Overall direct effect
+Y13_uni_direct <- sum(abs(aban_16S[c(19:20),c(1:10)]) * matrix(rep(vsize$perc[1:10],2), nrow = 2, byrow=T))
+#Year of sampling: Composition direct effect
+Y13_multi_direct <- sum(abs(aban_16S[c(21:23),c(1:10)]) * matrix(rep(vsize$perc[1:10],3), nrow = 3, byrow=T))
+#Past: Diversity development and invasion direct effect
+Ydev_uni_direct <- sum(abs(aban_16S[c(24:25,29:30),c(1:10)]) * matrix(rep(vsize$perc[1:10],4), nrow = 4, byrow=T))
+#Past: Compositional development and invasion direct effect
+Ydev_multi_direct <- sum(abs(aban_16S[c(26:28,31:33),c(1:10)]) * matrix(rep(vsize$perc[1:10],6), nrow = 6, byrow=T))
+
+#Year of sampling: overall INdirect effect
+chem_vsize <- abs(aban_16S[c(11:18),c(1:10)]) * matrix(rep(vsize$perc[1:10],8), nrow = 8, byrow=T)
+Y13_uni_indirect <- sum(rowSums(chem_vsize) * colSums(abs(aban_plantchem[c(2:3),c(1:8)]/10)))
+#Year of sampling: Compositional INdirect effects
+Y13_multi_indirect <- sum(rowSums(chem_vsize) * colSums(abs(aban_plantchem[c(4:6),c(1:8)]/10)))
+#Past: Overall development and invasion INdirect effect
+Ydev_uni_indirect <- sum(rowSums(chem_vsize) * colSums(abs(aban_plantchem[c(7:8,12:13),c(1:8)]/10)))
+#Past: Compositional development and invasion INdirect effect
+Ydev_multi_indirect <- sum(rowSums(chem_vsize) * colSums(abs(aban_plantchem[c(9:11,14:16),c(1:8)]/10)))
+
+effects_16S_aban <- data.frame(c(Y13_uni_direct, Y13_multi_direct, Ydev_uni_direct, Ydev_multi_direct, 
+                                 Y13_uni_indirect, Y13_multi_indirect, Ydev_uni_indirect, Ydev_multi_indirect))
+colnames(effects_16S_aban) <- "absolute"
+row.names(effects_16S_aban) <- c("Y13_uni_direct", "Y13_multi_direct", "Ydev_uni_direct", "Ydev_multi_direct", 
+                                 "Y13_uni_indirect", "Y13_multi_indirect", "Ydev_uni_indirect", "Ydev_multi_indirect")
+effects_16S_aban$percentage <- effects_16S_aban$absolute/sum(effects_16S_aban$absolute)*100
+effects_16S_aban
+
+#Devide by number of potential pathways
+effects_16S_aban$potential_pathways <- c(2, 3, 4, 6, 2, 3, 4, 6)
+effects_16S_aban$absolute_corr_path <- effects_16S_aban$absolute/effects_16S_aban$potential_pathways
+effects_16S_aban$percentage_corr_path <- effects_16S_aban$absolute_corr_path/sum(effects_16S_aban$absolute_corr_path)*100
+effects_16S_aban
+
+#Natural grassland ITS
+natural_plantchem <- as.matrix(read.table("SEM_network_natural_PC_full_3.0.txt", sep="\t",header=T, row.names=1))[-c(1:7),]
+natural_ITS <- as.matrix(read.table("SEM_network_natural_ITS_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(natural_ITS) <-  c(1:21, "tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                            "AP", "div", "scr1", "scr2", "scr3", 
+                            "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                            "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+
+#Relative size clusters
+load("Count_grass_ITS.Rda")
+SCount_grass <- ddply(Count_grass, c("sample", "cluster.grass"), summarise,
+                      srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_grass, c("cluster.grass"), summarise,
+               mrelreads = mean(srelreads, na.rm=TRUE))
+vsize$perc <- vsize$mrelreads/sum(vsize$mrelreads[1:21])
+
+#With aboveground productivity
+Y13_uni_direct <- sum(abs(natural_ITS[c(30:31),c(1:21)]) * matrix(rep(vsize$perc[1:21],2), nrow = 2, byrow=T))
+#Year of sampling: Diversity direct effect
+Y13_multi_direct <- sum(abs(natural_ITS[c(32:34),c(1:21)]) * matrix(rep(vsize$perc[1:21],3), nrow = 3, byrow=T))
+#Year of sampling: Composition direct effect
+Ydev_uni_direct <- sum(abs(natural_ITS[c(35:36, 40:41),c(1:21)]) * matrix(rep(vsize$perc[1:21],4), nrow = 4, byrow=T))
+#Past: Diversity development and invasion direct effect
+Ydev_multi_direct <- sum(abs(natural_ITS[c(37:39,42:44),c(1:21)]) * matrix(rep(vsize$perc[1:21],6), nrow = 6, byrow=T))
+#Past: Compositional development and invasion direct effect
+
+#Year of sampling: overall INdirect effect
+chem_vsize <- abs(natural_ITS[c(22:29),c(1:21)]) * matrix(rep(vsize$perc[1:21],8), nrow = 8, byrow=T)
+Y13_uni_indirect <- sum(rowSums(chem_vsize) * colSums(abs(natural_plantchem[c(2:3),c(1:8)]/10)))
+#Year of sampling: Compositional INdirect effects
+Y13_multi_indirect <- sum(rowSums(chem_vsize) * colSums(abs(natural_plantchem[c(4:6),c(1:8)]/10)))
+#Past: Overall development and invasion INdirect effect
+Ydev_uni_indirect <- sum(rowSums(chem_vsize) * colSums(abs(natural_plantchem[c(7:8,12:13),c(1:8)]/10)))
+#Past: Compositional development and invasion INdirect effect
+Ydev_multi_indirect <- sum(rowSums(chem_vsize) * colSums(abs(natural_plantchem[c(9:11,14:16),c(1:8)]/10)))
+
+effects_ITS_grass <- data.frame(c(Y13_uni_direct, Y13_multi_direct, Ydev_uni_direct, Ydev_multi_direct, 
+                                  Y13_uni_indirect, Y13_multi_indirect, Ydev_uni_indirect, Ydev_multi_indirect))
+colnames(effects_ITS_grass) <- "absolute"
+row.names(effects_ITS_grass) <- c("Y13_uni_direct", "Y13_multi_direct", "Ydev_uni_direct", "Ydev_multi_direct", 
+                                  "Y13_uni_indirect", "Y13_multi_indirect", "Ydev_uni_indirect", "Ydev_multi_indirect")
+effects_ITS_grass$percentage <- effects_ITS_grass$absolute/sum(effects_ITS_grass$absolute)*100
+effects_ITS_grass
+
+#Devide by number of potential pathways
+effects_ITS_grass$potential_pathways <- c(2, 3, 4, 6, 2, 3, 4, 6)
+effects_ITS_grass$absolute_corr_path <- effects_ITS_grass$absolute/effects_ITS_grass$potential_pathways
+effects_ITS_grass$percentage_corr_path <- effects_ITS_grass$absolute_corr_path/sum(effects_ITS_grass$absolute_corr_path)*100
+effects_ITS_grass
+
+#Abandoned arable ITS
+aban_plantchem <- as.matrix(read.table("SEM_network_abandoned_PC_full_3.0.txt", sep="\t",header=T, row.names=1))[-c(1:7),]
+aban_ITS <- as.matrix(read.table("SEM_network_abandoned_ITS_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(aban_ITS) <-  c(1:18, "tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                         "AP", "div", "scr1", "scr2", "scr3", 
+                         "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                         "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+
+#Relative size clusters
+load("Count_aban_ITS.Rda")
+SCount_aban <- ddply(Count_aban, c("sample", "cluster.aban"), summarise,
+                     srelreads = sum(relreads, na.rm=TRUE))
+vsize <- ddply(SCount_aban, c("cluster.aban"), summarise,
+               mrelreads = mean(srelreads, na.rm=TRUE))
+vsize$perc <- vsize$mrelreads/sum(vsize$mrelreads[1:18])
+
+#With aboveground productivity
+Y13_uni_direct <- sum(abs(aban_ITS[c(27:28),c(1:18)]) * matrix(rep(vsize$perc[1:18],2), nrow = 2, byrow=T))
+#Year of sampling: Diversity direct effect
+Y13_multi_direct <- sum(abs(aban_ITS[c(29:31),c(1:18)]) * matrix(rep(vsize$perc[1:18],3), nrow = 3, byrow=T))
+#Year of sampling: Composition direct effect
+Ydev_uni_direct <- sum(abs(aban_ITS[c(32:33, 37:38),c(1:18)]) * matrix(rep(vsize$perc[1:18],4), nrow = 4, byrow=T))
+#Past: Diversity development and invasion direct effect
+Ydev_multi_direct <- sum(abs(aban_ITS[c(34:36,39:41),c(1:18)]) * matrix(rep(vsize$perc[1:18],6), nrow = 6, byrow=T))
+#Past: Compositional development and invasion direct effect
+
+#Year of sampling: overall INdirect effect
+chem_vsize <- abs(aban_ITS[c(19:26),c(1:18)]) * matrix(rep(vsize$perc[1:18],8), nrow = 8, byrow=T)
+Y13_uni_indirect <- sum(rowSums(chem_vsize) * colSums(abs(aban_plantchem[c(2:3),c(1:8)]/10)))
+#Year of sampling: Compositional INdirect effects
+Y13_multi_indirect <- sum(rowSums(chem_vsize) * colSums(abs(aban_plantchem[c(4:6),c(1:8)]/10)))
+#Past: Overall development and invasion INdirect effect
+Ydev_uni_indirect <- sum(rowSums(chem_vsize) * colSums(abs(aban_plantchem[c(7:8,12:13),c(1:8)]/10)))
+#Past: Compositional development and invasion INdirect effect
+Ydev_multi_indirect <- sum(rowSums(chem_vsize) * colSums(abs(aban_plantchem[c(9:11,14:16),c(1:8)]/10)))
+
+effects_ITS_aban <- data.frame(c(Y13_uni_direct, Y13_multi_direct, Ydev_uni_direct, Ydev_multi_direct, 
+                                 Y13_uni_indirect, Y13_multi_indirect, Ydev_uni_indirect, Ydev_multi_indirect))
+colnames(effects_ITS_aban) <- "absolute"
+row.names(effects_ITS_aban) <- c("Y13_uni_direct", "Y13_multi_direct", "Ydev_uni_direct", "Ydev_multi_direct", 
+                                 "Y13_uni_indirect", "Y13_multi_indirect", "Ydev_uni_indirect", "Ydev_multi_indirect")
+effects_ITS_aban$percentage <- effects_ITS_aban$absolute/sum(effects_ITS_aban$absolute)*100
+effects_ITS_aban
+
+#Devide by number of potential pathways
+effects_ITS_aban$potential_pathways <- c(2, 3, 4, 6, 2, 3, 4, 6)
+effects_ITS_aban$absolute_corr_path <- effects_ITS_aban$absolute/effects_ITS_aban$potential_pathways
+effects_ITS_aban$percentage_corr_path <- effects_ITS_aban$absolute_corr_path/sum(effects_ITS_aban$absolute_corr_path)*100
+effects_ITS_aban
+
+#Natural grassland PLFA
+natural_plantchem <- as.matrix(read.table("SEM_network_natural_PC_full_3.0.txt", sep="\t",header=T, row.names=1))[-c(1:7),]
+natural_PLFA <- as.matrix(read.table("SEM_network_natural_PLFA_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(natural_PLFA) <-  c("bacteria", "fungi", "AMF", "tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                             "AP", "div", "scr1", "scr2", "scr3", 
+                             "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                             "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+
+#Relative size clusters
+load("MData_grass_cluster_16S.Rda")
+colnames(MData_grass_cluster)
+sub <- unique(MData_grass_cluster[,c(6,80:84,87)])
+msub <- melt(sub)
+Msub <- ddply(msub, c("variable"), summarise,
+              mbio = mean(value, na.rm=TRUE))
+vsize <- c(Msub$mbio[2], Msub$mbio[1], Msub$mbio[6])
+vsize_perc <- vsize/sum(Msub$mbio[2], Msub$mbio[1]) *10
+
+#With aboveground productivity
+Y13_uni_direct <- sum(abs(natural_PLFA[c(12:13),c(1:3)]) * matrix(rep(vsize_perc[1:3],2), nrow = 2, byrow=T))
+#Year of sampling: Diversity direct effect
+Y13_multi_direct <- sum(abs(natural_PLFA[c(14:16),c(1:3)]) * matrix(rep(vsize_perc[1:3],3), nrow = 3, byrow=T))
+#Year of sampling: Composition direct effect
+Ydev_uni_direct <- sum(abs(natural_PLFA[c(17:18,22:23),c(1:3)]) * matrix(rep(vsize_perc[1:3],4), nrow = 4, byrow=T))
+#Past: Diversity development and invasion direct effect
+Ydev_multi_direct <- sum(abs(natural_PLFA[c(19:21,24:26),c(1:3)]) * matrix(rep(vsize_perc[1:3],6), nrow = 6, byrow=T))
+#Past: Compositional development and invasion direct effect
+
+#Year of sampling: overall INdirect effect
+chem_vsize <- abs(natural_PLFA[c(4:11),c(1:3)]) * matrix(rep(vsize_perc[1:3],8), nrow = 8, byrow=T)
+Y13_uni_indirect <- sum(rowSums(chem_vsize) * colSums(abs(natural_plantchem[c(2:3),c(1:8)]/10)))
+#Year of sampling: Compositional INdirect effects
+Y13_multi_indirect <- sum(rowSums(chem_vsize) * colSums(abs(natural_plantchem[c(4:6),c(1:8)]/10)))
+#Past: Overall development and invasion INdirect effect
+Ydev_uni_indirect <- sum(rowSums(chem_vsize) * colSums(abs(natural_plantchem[c(7:8,12:13),c(1:8)]/10)))
+#Past: Compositional development and invasion INdirect effect
+Ydev_multi_indirect <- sum(rowSums(chem_vsize) * colSums(abs(natural_plantchem[c(9:11,14:16),c(1:8)]/10)))
+
+effects_PLFA_grass <- data.frame(c(Y13_uni_direct, Y13_multi_direct, Ydev_uni_direct, Ydev_multi_direct, 
+                                   Y13_uni_indirect, Y13_multi_indirect, Ydev_uni_indirect, Ydev_multi_indirect))
+colnames(effects_PLFA_grass) <- "absolute"
+row.names(effects_PLFA_grass) <- c("Y13_uni_direct", "Y13_multi_direct", "Ydev_uni_direct", "Ydev_multi_direct", 
+                                   "Y13_uni_indirect", "Y13_multi_indirect", "Ydev_uni_indirect", "Ydev_multi_indirect")
+effects_PLFA_grass$percentage <- effects_PLFA_grass$absolute/sum(effects_PLFA_grass$absolute)*100
+effects_PLFA_grass
+
+#Devide by number of potential pathways
+effects_PLFA_grass$potential_pathways <- c(2, 3, 4, 6, 2, 3, 4, 6)
+effects_PLFA_grass$absolute_corr_path <- effects_PLFA_grass$absolute/effects_PLFA_grass$potential_pathways
+effects_PLFA_grass$percentage_corr_path <- effects_PLFA_grass$absolute_corr_path/sum(effects_PLFA_grass$absolute_corr_path)*100
+effects_PLFA_grass    
+    
+#Abandoned arable PLFA
+aban_plantchem <- as.matrix(read.table("SEM_network_abandoned_PC_full_3.0.txt", sep="\t",header=T, row.names=1))[-c(1:7),]
+aban_PLFA <- as.matrix(read.table("SEM_network_abandoned_PLFA_3.0.txt", sep="\t",header=T, row.names=1))
+colnames(aban_PLFA) <-  c("bacteria", "fungi", "AMF", "tot N", "tot P", "org C", "pH", "NO3", "NH4", "NO2", "BP", 
+                          "AP", "div", "scr1", "scr2", "scr3", 
+                          "AP.traj", "div.traj", "scr1.traj", "scr2.traj", "scr3.traj", 
+                          "AP.ef", "div.ef", "scr1.ef", "scr2.ef", "scr3.ef")
+
+#Relative size clusters
+load("MData_aban_cluster_16S.Rda")
+sub <- unique(MData_aban_cluster[,c(5,71:75,78)])
+msub <- melt(sub)
+Msub <- ddply(msub, c("variable"), summarise,
+              mbio = mean(value, na.rm=TRUE))
+vsize <- c(Msub$mbio[2], Msub$mbio[1], Msub$mbio[6])
+vsize_perc <- vsize/sum(Msub$mbio[2], Msub$mbio[1]) *10
+
+#With aboveground productivity
+Y13_uni_direct <- sum(abs(aban_PLFA[c(12:13),c(1:3)]) * matrix(rep(vsize_perc[1:3],2), nrow = 2, byrow=T))
+#Year of sampling: Diversity direct effect
+Y13_multi_direct <- sum(abs(aban_PLFA[c(14:16),c(1:3)]) * matrix(rep(vsize_perc[1:3],3), nrow = 3, byrow=T))
+#Year of sampling: Composition direct effect
+Ydev_uni_direct <- sum(abs(aban_PLFA[c(17:18,22:23),c(1:3)]) * matrix(rep(vsize_perc[1:3],4), nrow = 4, byrow=T))
+#Past: Diversity development and invasion direct effect
+Ydev_multi_direct <- sum(abs(aban_PLFA[c(19:21,24:26),c(1:3)]) * matrix(rep(vsize_perc[1:3],6), nrow = 6, byrow=T))
+#Past: Compositional development and invasion direct effect
+
+#Year of sampling: overall INdirect effect
+chem_vsize <- abs(aban_PLFA[c(4:11),c(1:3)]) * matrix(rep(vsize_perc[1:3],8), nrow = 8, byrow=T)
+Y13_uni_indirect <- sum(rowSums(chem_vsize) * colSums(abs(aban_plantchem[c(2:3),c(1:8)]/10)))
+#Year of sampling: Compositional INdirect effects
+Y13_multi_indirect <- sum(rowSums(chem_vsize) * colSums(abs(aban_plantchem[c(4:6),c(1:8)]/10)))
+#Past: Overall development and invasion INdirect effect
+Ydev_uni_indirect <- sum(rowSums(chem_vsize) * colSums(abs(aban_plantchem[c(7:8,12:13),c(1:8)]/10)))
+#Past: Compositional development and invasion INdirect effect
+Ydev_multi_indirect <- sum(rowSums(chem_vsize) * colSums(abs(aban_plantchem[c(9:11,14:16),c(1:8)]/10)))
+
+effects_PLFA_aban <- data.frame(c(Y13_uni_direct, Y13_multi_direct, Ydev_uni_direct, Ydev_multi_direct, 
+                                  Y13_uni_indirect, Y13_multi_indirect, Ydev_uni_indirect, Ydev_multi_indirect))
+colnames(effects_PLFA_aban) <- "absolute"
+row.names(effects_PLFA_aban) <- c("Y13_uni_direct", "Y13_multi_direct", "Ydev_uni_direct", "Ydev_multi_direct", 
+                                  "Y13_uni_indirect", "Y13_multi_indirect", "Ydev_uni_indirect", "Ydev_multi_indirect")
+effects_PLFA_aban$percentage <- effects_PLFA_aban$absolute/sum(effects_PLFA_aban$absolute)*100
+effects_PLFA_aban
+
+#Devide by number of potential pathways
+effects_PLFA_aban$potential_pathways <- c(2, 3, 4, 6, 2, 3, 4, 6)
+effects_PLFA_aban$absolute_corr_path <- effects_PLFA_aban$absolute/effects_PLFA_aban$potential_pathways
+effects_PLFA_aban$percentage_corr_path <- effects_PLFA_aban$absolute_corr_path/sum(effects_PLFA_aban$absolute_corr_path)*100
+effects_PLFA_aban
