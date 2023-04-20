@@ -250,3 +250,280 @@ prow_l
 
 #save_plot("C:/Users/dzandt/Desktop/Skopky_microbiome/Network_robustness/FigSX_null_model.png", prow_l,
 #          ncol = 2, nrow = 1, base_aspect_ratio = 1.5, dpi=600)
+
+
+#####C Prokaryotes and fungi coupling/decoupling#####
+#Natural grassland
+#Load count data prokaryotes
+load("Count_grass_16S.RDa")
+Count_grass_16S <- Count_grass
+load("Count_grass_ITS.RDa")
+Count_grass_ITS <- Count_grass
+
+head(Count_grass_16S[,c(1:5, 18:19),])
+head(Count_grass_ITS[,c(1:5, 23, 25),])
+
+#Loop
+number_sig <- list()
+mean_sig <- list()
+mean_sig_general <- list()
+
+for (r in 1:1000) { #use 1000 iterations, but test with ~3 first to test loop
+  
+  #Randomise 16S and ITS networks
+  null_grass_16S <- random(ig2.mb.grass_16S)
+  null_grass_ITS <- random(ig2.mb.grass_ITS)
+  
+  #Define clusters in randomised networks
+  clusters_null_grass_16S <- cluster_spinglass(null_grass_16S, implementation = 'neg')
+  clusters_null_grass_ITS <- cluster_spinglass(null_grass_ITS, implementation = 'neg')
+  
+  #Merge clustering to counts
+  clusters_16S <- data.frame(clusters_null_grass_16S$name, clusters_null_grass_16S$membership)
+  clusters_ITS <- data.frame(clusters_null_grass_ITS$name, clusters_null_grass_ITS$membership)
+  colnames(clusters_16S) <- c("OTU", "cluster.16S")
+  colnames(clusters_ITS) <- c("OTU", "cluster.ITS")
+  tmp_16S <- merge(Count_grass_16S[,c(1:2, 4, 19),], clusters_16S, by = c("OTU"))
+  tmp_ITS <- merge(Count_grass_ITS[,c(1:2, 4, 25),], clusters_ITS, by = c("OTU"))
+  
+  #Sum relative counts per cluster
+  sum_16S <- tmp_16S %>%
+    group_by(sample, seed_density, cluster.16S) %>%
+    summarise(sumreads = sum(relreads, na.rm = T)) %>%
+    pivot_wider(id_cols = c("sample", "seed_density"), names_from = cluster.16S, values_from = sumreads)
+  
+  sum_ITS <- tmp_ITS %>%
+    group_by(sample, seed_density, cluster.ITS) %>%
+    summarise(sumreads = sum(relreads, na.rm = T)) %>%
+    pivot_wider(id_cols = c("sample", "seed_density"), names_from = cluster.ITS, values_from = sumreads)
+  
+  #Loop 16S and ITS summed reads per cluster through model and collect p and R2 values
+  p.value <- list()
+  R2.value <- list()
+  
+  for (i in (1:(dim(sum_16S)[2]-2))) {
+    for (j in (1:(dim(sum_ITS)[2]-2))) {
+      
+      tryCatch({
+        
+      variabley <- unlist(sum_16S[,2+i])
+      variablex <- unlist(sum_ITS[,2+i])
+    
+      fit <- lme(sqrt(variabley) ~ sqrt(variablex), random = ~1|seed_density, data = sum_16S)
+      
+      p.value[[paste(i,j, sep = "_")]] <- Anova(fit, type=3)[2,3]
+      R2.value[[paste(i,j, sep = "_")]] <- extract_numeric(performance::r2(fit)$R2_marginal)
+      
+      }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")},
+      p.value[[paste(i,j, sep = "_")]] <- NA, R2.value[[paste(i,j, sep = "_")]] <- NA)
+      
+      }
+    }
+  
+  #Calculate number and mean R2 of significant correlations between 16S and ITS clusters
+  tmp_p <- reshape2::melt(p.value)
+  tmp_R2 <- reshape2::melt(R2.value)
+  
+  number_sig[[paste(r)]] <- length(tmp_p$L1[which(tmp_p$value < 0.00167)])
+  mean_sig[[paste(r)]] <- mean(tmp_R2$value[which(tmp_p$value < 0.00167)])
+  mean_sig_general[[paste(r)]] <- mean(tmp_R2$value)
+  
+  print(r)
+  
+}
+
+number_sig
+mean_sig
+mean_sig_general
+
+#Save results
+library(reshape2)
+temp <- melt(number_sig)
+head(temp)
+colnames(temp) <- c("number_sig_paths", "iteration")
+number_sig_16S_ITS_grass_null_model <- temp
+#save(number_sig_16S_ITS_grass_null_model, file = "number_sig_16S_ITS_grass_null_model.Rda")
+
+temp <- melt(mean_sig)
+head(temp)
+colnames(temp) <- c("mean_marR2_sig_paths", "iteration")
+mean_marR2_16S_ITS_grass_null_model <- temp
+mean_marR2_16S_ITS_grass_null_model$mean_marR2_sig_paths[which(mean_marR2_16S_ITS_grass_null_model$mean_marR2_sig_paths == "NaN")] <- 0
+#save(mean_marR2_16S_ITS_grass_null_model, file = "mean_marR2_16S_ITS_grass_null_model.Rda")
+
+temp <- melt(mean_sig_general)
+head(temp)
+colnames(temp) <- c("mean_marR2_general", "iteration")
+mean_marR2_general_16S_ITS_grass_null_model <- temp
+#save(mean_marR2_general_16S_ITS_grass_null_model, file = "mean_marR2_general_16S_ITS_grass_null_model.Rda")
+
+
+#####Abandoned arable#####
+#Load count data
+load("Count_aban_16S.RDa")
+Count_aban_16S <- Count_aban
+load("Count_aban_ITS.RDa")
+Count_aban_ITS <- Count_aban
+
+head(Count_aban_16S[,c(1:5, 18:19),])
+head(Count_aban_ITS[,c(1:5, 23, 25),])
+
+#Loop
+number_sig <- list()
+mean_sig <- list()
+mean_sig_general <- list()
+
+for (r in 1:1000) { #use 1000 iterations, but test with ~3 first to test loop
+  
+  #Randomise 16S and ITS networks
+  null_aban_16S <- random(ig2.mb.aban_16S)
+  null_aban_ITS <- random(ig2.mb.aban_ITS)
+  
+  #Define clusters in randomised networks
+  clusters_null_aban_16S <- cluster_spinglass(null_aban_16S, implementation = 'neg')
+  clusters_null_aban_ITS <- cluster_spinglass(null_aban_ITS, implementation = 'neg')
+  
+  #Merge clustering to counts
+  clusters_16S <- data.frame(clusters_null_aban_16S$name, clusters_null_aban_16S$membership)
+  clusters_ITS <- data.frame(clusters_null_aban_ITS$name, clusters_null_aban_ITS$membership)
+  colnames(clusters_16S) <- c("OTU", "cluster.16S")
+  colnames(clusters_ITS) <- c("OTU", "cluster.ITS")
+  tmp_16S <- merge(Count_aban_16S[,c(1:2, 4, 19),], clusters_16S, by = c("OTU"))
+  tmp_ITS <- merge(Count_aban_ITS[,c(1:2, 4, 25),], clusters_ITS, by = c("OTU"))
+  
+  #Sum relative counts per cluster
+  sum_16S <- tmp_16S %>%
+    group_by(sample, seed_density, cluster.16S) %>%
+    summarise(sumreads = sum(relreads, na.rm = T)) %>%
+    pivot_wider(id_cols = c("sample", "seed_density"), names_from = cluster.16S, values_from = sumreads)
+  
+  sum_ITS <- tmp_ITS %>%
+    group_by(sample, seed_density, cluster.ITS) %>%
+    summarise(sumreads = sum(relreads, na.rm = T)) %>%
+    pivot_wider(id_cols = c("sample", "seed_density"), names_from = cluster.ITS, values_from = sumreads)
+  
+  #Loop 16S and ITS summed reads per cluster through model and collect p and R2 values
+  p.value <- list()
+  R2.value <- list()
+  
+  for (i in (1:(dim(sum_16S)[2]-2))) {
+    for (j in (1:(dim(sum_ITS)[2]-2))) {
+      
+      tryCatch({
+        
+        variabley <- unlist(sum_16S[,2+i])
+        variablex <- unlist(sum_ITS[,2+i])
+        
+        fit <- lme(sqrt(variabley) ~ sqrt(variablex), random = ~1|seed_density, data = sum_16S)
+        
+        p.value[[paste(i,j, sep = "_")]] <- Anova(fit, type=3)[2,3]
+        R2.value[[paste(i,j, sep = "_")]] <- extract_numeric(performance::r2(fit)$R2_marginal)
+        
+      }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")},
+      p.value[[paste(i,j, sep = "_")]] <- NA, R2.value[[paste(i,j, sep = "_")]] <- NA)
+      
+    }
+  }
+  
+  #Calculate number and mean R2 of significant correlations between 16S and ITS clusters
+  tmp_p <- reshape2::melt(p.value)
+  tmp_R2 <- reshape2::melt(R2.value)
+  
+  number_sig[[paste(r)]] <- length(tmp_p$L1[which(tmp_p$value < 0.00167)])
+  mean_sig[[paste(r)]] <- mean(tmp_R2$value[which(tmp_p$value < 0.00167)])
+  mean_sig_general[[paste(r)]] <- mean(tmp_R2$value)
+  
+  print(r)
+  
+}
+
+number_sig
+mean_sig
+mean_sig_general
+
+#Save results
+library(reshape2)
+temp <- melt(number_sig)
+head(temp)
+colnames(temp) <- c("number_sig_paths", "iteration")
+number_sig_16S_ITS_aban_null_model <- temp
+#save(number_sig_16S_ITS_aban_null_model, file = "number_sig_16S_ITS_aban_null_model.Rda")
+
+temp <- melt(mean_sig)
+head(temp)
+colnames(temp) <- c("mean_marR2_sig_paths", "iteration")
+mean_marR2_16S_ITS_aban_null_model <- temp
+mean_marR2_16S_ITS_aban_null_model$mean_marR2_sig_paths[which(mean_marR2_16S_ITS_aban_null_model$mean_marR2_sig_paths == "NaN")] <- 0
+#save(mean_marR2_16S_ITS_aban_null_model, file = "mean_marR2_16S_ITS_aban_null_model.Rda")
+
+temp <- melt(mean_sig_general)
+head(temp)
+colnames(temp) <- c("mean_marR2_general", "iteration")
+mean_marR2_general_16S_ITS_aban_null_model <- temp
+#save(mean_marR2_general_16S_ITS_aban_null_model, file = "mean_marR2_general_16S_ITS_aban_null_model.Rda")
+
+#Load
+load("number_sig_16S_ITS_grass_null_model.Rda")
+load("number_sig_16S_ITS_aban_null_model.Rda")
+
+#Merge the two soils
+#Number of significant pathways
+number_sig_16S_ITS_grass_null_model$soil <- "grassland"
+number_sig_16S_ITS_aban_null_model$soil <- "abandoned"
+number_sig_16S_ITS_null_model <- rbind(number_sig_16S_ITS_grass_null_model, number_sig_16S_ITS_aban_null_model)
+number_sig_16S_ITS_null_model$soil <- factor(number_sig_16S_ITS_null_model$soil, levels = c("grassland", "abandoned"))
+
+#Number of significant pathways
+mean_marR2_16S_ITS_grass_null_model$soil <- "grassland"
+mean_marR2_16S_ITS_aban_null_model$soil <- "abandoned"
+mean_marR2_16S_ITS_null_model <- rbind(mean_marR2_16S_ITS_grass_null_model, mean_marR2_16S_ITS_aban_null_model)
+mean_marR2_16S_ITS_null_model$soil <- factor(mean_marR2_16S_ITS_null_model$soil, levels = c("grassland", "abandoned"))
+
+#Make distribution figures
+head(number_sig_16S_ITS_null_model)
+range(number_sig_16S_ITS_null_model$number_sig_paths)
+plot_sig_path <- ggplot(number_sig_16S_ITS_null_model, aes(x=number_sig_paths, colour = soil)) + 
+  geom_density(size=0.8) +
+  scale_colour_manual(values=c("#009E73", "#E69F00")) + 
+  scale_fill_manual(values=c("#009E73", "#E69F00")) +
+  geom_vline(xintercept = 8.8, colour = "#E69F00", size=2) + 
+  geom_vline(xintercept = 9.2, colour = "#009E73", size=2) + 
+  xlab("Number of significant correlations") + 
+  ylab("Frequency") +
+  #ggtitle("Prokaryote networks")+
+  #scale_y_continuous(expand = c(0, 0)) +
+  theme_bw() +
+  #theme(legend.position= "none", legend.text = element_text(colour="black", size = 15),
+  #      legend.title = element_blank())+
+  theme(axis.title.y=element_text(size=15, colour = "black",margin=(margin(0,10,0,0))))+
+  theme(axis.title.x=element_text(size=15, colour = "black", margin=(margin(10,0,0,0))))+
+  theme(axis.text=element_text(size=12))+
+  theme(plot.title = element_text(size=15, face="bold"))+
+  theme(panel.grid.minor = element_blank())+
+  theme(panel.grid.major = element_blank())+
+  theme(panel.grid.minor = element_blank())+
+  theme(panel.grid.major = element_blank())
+
+plot_sig_path
+
+#Save plot
+library(cowplot)
+prow <- plot_grid(plot_sig_path, align="hv", label_size=12, vjust=1.1)
+prow
+
+save_plot("C:/Users/dzandt/Desktop/Skopky_microbiome/Network_robustness/FigSX_null_decoupling_model.png", prow,
+          ncol = 1, nrow = 1, base_aspect_ratio = 1.5, dpi=600)
+
+#Calculate significance
+#Number of cases that modularity of random networks was above/below (see density figure) modularity value of real network
+#After Yenni et al. 2017, Global Ecology and Biogeography, 26(5) and in 't Zandt et al. 2021, JEcol 109(3)
+#Number of significant pathways
+head(number_sig_16S_ITS_grass_null_model)
+sum(number_sig_16S_ITS_grass_null_model$number_sig_paths > 9)/1000 #0.031
+head(number_sig_16S_ITS_aban_null_model)
+sum(number_sig_16S_ITS_aban_null_model$number_sig_paths > 9)/1000 #0.02
+
+#significantly higher coupling than by chance, even in natural grassland
+
+head(mean_marR2_16S_ITS_grass_null_model)
+sum(number_sig_16S_ITS_grass_null_model$mean_marR2_sig_paths > 0.36)/1000 #0 = never occurred
