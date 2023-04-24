@@ -97,3 +97,72 @@ prowA <- plot_grid(plotA + theme(legend.position="none"),
 #save_plot("D:/Prague/1. Dry grassland development/MS/Figures/Fig_temporal_stability.png", prowA,
 #          ncol = 0.8, nrow = 0.8, base_aspect_ratio = 0.75, dpi=600) #PC
 
+
+#Correlate to 16S/ITS slopes
+load("slope_glm_func_grass.Rda")
+load("slope_glm_func_aban.Rda")
+
+#Bind the two soils
+slope_glm_func_grass$soil <- "grassland"
+slope_glm_func_aban$soil <- "abandoned"
+slope_glm <- rbind(slope_glm_func_grass, slope_glm_func_aban)
+colnames(slope_glm) <- c("slope_glm", "code", "soil")
+
+#Merge to stability
+temp <- merge(Comm_stability, slope_glm, by = c("code", "soil"), all = T)
+head(temp)
+Comm_stability <- temp
+
+#Plot correlation
+plotC <- ggplot(data=Comm_stability, aes(x=slope_glm, y=log(stability), colour = soil))+
+  #geom_jitter(position=position_jitter(width=0.3, height=0), aes(colour=soil, alpha=0.9), show.legend = F) +
+  geom_point(size=2) +
+  #geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+  geom_smooth(method = "glm", aes(group = NA), colour = "black") +
+  scale_colour_manual(values=c("#009E73","#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#CC79A7", "black"), name="Soil")+
+  scale_fill_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#CC79A7"), name="Soil")+
+  xlab("Coupling prokaryote and fungal clusters")+ 
+  ylab("Temporal stability (ln-transformed)")+
+  theme_bw() +
+  theme(axis.title.x=element_text(size=10))+
+  theme(axis.text=element_text(size=10))+
+  #theme(axis.text.x=element_blank())+
+  theme(panel.grid.minor = element_blank())+
+  theme(panel.grid.major = element_blank())+
+  #scale_x_continuous(limits=c(-0.5, 1.0)) +
+  theme(strip.text.x=element_text(size=10), strip.background=element_rect(fill="grey"))
+plotC
+
+#Save plot
+library(cowplot)
+prowC <- plot_grid(plotC, ncol=1, nrow=1, align="hv", label_size=12, vjust=1.1)
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/Fig_stability_coupling.png", prowC,
+#          ncol = 1, nrow = 1, base_aspect_ratio = 1.5, dpi=600) #PC
+
+
+#Statistics
+head(Comm_stability)
+library(nlme)
+library(car)
+library(lme4)
+
+Pot_position <- read.table("Pot_position.txt", sep="\t",header=T)
+head(Pot_position)
+colnames(Pot_position) <- c("code", "row", "column")
+Comm_stability <- merge(Comm_stability, Pot_position, by = c("code"))
+
+#Linear mixed effects models
+#Set varIdent in case needed
+vf <- varIdent(form = ~ 1 | soil)
+
+m1 <- lme(log(stability) ~ soil, random = ~ 1| seed_density, weights=vf, data=Comm_stability)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3) #significant
+
+#Correlation to slope_glm
+m1 <- lme(log(stability) ~ slope_glm, random = ~ 1| soil, data=Comm_stability)
+qqnorm(resid(m1))
+plot(m1)
+Anova(m1, type = 3) #significant
+#Seed density does not add anything
