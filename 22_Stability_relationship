@@ -1,0 +1,99 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R") #PC
+
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(plyr)
+library(stringr)
+library(vegan)
+library(tidyr)
+library("QuantPsyc")
+
+load("Comm_2.RDa")
+Data <- read.table("species_proportions.txt", sep="\t",header=T)
+abbr <- read.table("abbr.txt", sep="\t",header=T)
+
+#Get species proportions into long format and match with abbr
+temp <- melt(Data, id = c("pot", "code", "year", "month", "seed_density", "soil"))
+colnames(temp) <- c("pot", "code", "year", "month", "seed_density", "soil", "Code.zuzana", "prop")
+head(temp)
+Data <- merge(temp, abbr, by = c("Code.zuzana"))
+
+#Calculate number of plant species cases
+Data$community <- paste(Data$soil, Data$seed_density, Data$month, Data$year, Data$code, sep = ".")
+
+#Take out September data points
+Data_sub1 <- Data[which(Data$month == "Jul"),]
+
+#Loop
+Data_sub1$abbr <- factor(Data_sub1$abbr)
+
+cases <- list()
+
+for (i in levels(Data_sub1$abbr)) {
+  
+  sub <- Data_sub1[which(Data_sub1$abbr == i),] 
+  cases[paste(i)] <- sum(sub$prop > 0)
+  
+}
+
+temp <- melt(cases)
+colnames(temp) <- c("nobs", "abbr")
+cases <- temp
+
+#Merge to Data
+temp2 <- merge(Data_sub1, cases, by = c("abbr"))
+Data_sub1 <- temp2
+
+#Delete species that were very rare
+cases
+#Data_sub2 <- Data_sub1[which(Data_sub1$nobs > 20),]
+Data_sub2 <- Data_sub1
+
+#Delete first year as plant community was establishing
+range(Data_sub$year)
+Data_sub <- Data_sub2[which(!Data_sub2$year %in% c("2007")),]
+
+#Calculate temporal stability using the codyn package
+library(codyn)
+
+#Community stability as the temporal mean divided by the temporal standard deviation (Tilman 1999)
+Comm_stability <- community_stability(Data_sub, 
+                                     time.var = "year", 
+                                     abundance.var = "prop", 
+                                     replicate.var = "code")
+
+#Add soil and seed density coding
+Comm_stability <- merge(unique(Comm[,c(1,3,4)]), Comm_stability, by = c("code"))
+
+#Plot
+head(Comm_stability)
+Comm_stability$soil <- factor(Comm_stability$soil, levels = c("grassland", "abandoned"))
+#save(Comm_stability, file = "Comm_stability.Rda")
+
+plotA <- ggplot(data=Comm_stability, aes(x=soil, y=stability, fill=soil))+
+  geom_jitter(position=position_jitter(width=0.3, height=0), aes(colour=soil, alpha=0.9), show.legend = F) +
+  #geom_point(size=2, aes(colour=seed_density)) +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+  scale_colour_manual(values=c("#009E73","#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#CC79A7", "black"), name="Soil")+
+  scale_fill_manual(values=c("#009E73", "#E69F00", "#0072B2", "#D55E00", "#999999", "#56B4E9", "#CC79A7"), name="Soil")+
+  #xlab("Soil")+ 
+  ylab("Temporal stability")+
+  theme_bw() +
+  theme(axis.title.x=element_blank())+
+  theme(axis.text=element_text(size=10))+
+  #theme(axis.text.x=element_blank())+
+  theme(panel.grid.minor = element_blank())+
+  theme(panel.grid.major = element_blank())+
+  theme(strip.text.x=element_text(size=10), strip.background=element_rect(fill="grey"))
+plotA
+
+#Save plot
+library(cowplot)
+prowA <- plot_grid(plotA + theme(legend.position="none"), 
+                       labels=c("D"), ncol=1, nrow=1, align="hv", label_size=12, vjust=1.1)
+#save_plot("D:/Prague/1. Dry grassland development/MS/Figures/Fig_temporal_stability.png", prowA,
+#          ncol = 0.8, nrow = 0.8, base_aspect_ratio = 0.75, dpi=600) #PC
+
