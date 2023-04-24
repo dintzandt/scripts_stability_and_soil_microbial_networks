@@ -1,0 +1,543 @@
+rm(list=ls())
+getwd()
+setwd("D:/Prague/1. Dry grassland development/R/Microbial") #PC
+
+library("phyloseq")
+library("vegan")
+library("DESeq2")
+library("ggplot2")
+library("dendextend")
+library("tidyr")
+library("viridis")
+library("reshape")
+library("plyr")
+library("stringr")
+library("metagMisc")
+library("igraph")
+library(cowplot)
+library(car)
+library(nlme)
+library(sjstats)
+
+#Prep ITS data natural grassland#
+load("MData_grass_cluster_ITS.RDa")
+head(MData_grass_cluster)
+
+#Make df with clusters are separate columns
+#Natural grassland
+temp1 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 1),]
+temp2 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 2),]
+temp3 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 3),]
+temp4 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 4),]
+temp5 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 5),]
+temp6 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 6),]
+temp7 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 7),]
+temp8 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 8),]
+temp9 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 9),]
+temp10 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 10),]
+temp11 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 11),]
+temp12 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 12),]
+temp13 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 13),]
+temp14 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 14),]
+temp15 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 15),]
+temp16 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 16),]
+temp17 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 17),]
+temp18 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 18),]
+temp19 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 19),]
+temp20 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 20),]
+temp21 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 21),]
+#temp22 <- MData_grass_cluster[which(MData_grass_cluster$cluster.grass == 22),]
+
+Mcluster_grass <- cbind(temp1, temp2$mrelreads, temp3$mrelreads, temp4$mrelreads, temp5$mrelreads, 
+                        temp6$mrelreads, temp7$mrelreads, temp8$mrelreads, temp9$mrelreads, temp10$mrelreads,
+                        temp11$mrelreads, temp12$mrelreads, temp13$mrelreads, temp14$mrelreads, temp15$mrelreads,
+                        temp16$mrelreads, temp17$mrelreads, temp18$mrelreads, temp19$mrelreads, temp20$mrelreads,
+                        temp21$mrelreads)
+colnames(Mcluster_grass)[c(93:113)] <- c("c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10",
+                                         "c11", "c12", "c13", "c14", "c15", "c16", "c17", "c18", "c19", "c20",
+                                         "c21")
+#For stats
+Mcluster_grass$seed_density <- factor(Mcluster_grass$seed_density)
+
+#Transform clusters
+Mcluster_grass$c1_log <-log(Mcluster_grass$c1)
+Mcluster_grass$c2_log <-log(Mcluster_grass$c2)
+Mcluster_grass$c3_log <-log(Mcluster_grass$c3)
+Mcluster_grass$c4_log <-log(Mcluster_grass$c4)
+Mcluster_grass$c5_log <-log(Mcluster_grass$c5)
+Mcluster_grass$c6_log <-log(Mcluster_grass$c6)
+Mcluster_grass$c7_log <-log(Mcluster_grass$c7)
+Mcluster_grass$c8_log <-log(Mcluster_grass$c8+0.001)
+Mcluster_grass$c9_log <-log(Mcluster_grass$c9)
+Mcluster_grass$c10_log <-log(Mcluster_grass$c10)
+Mcluster_grass$c11_log <-log(Mcluster_grass$c11)
+Mcluster_grass$c12_log <-log(Mcluster_grass$c12)
+Mcluster_grass$c13_log <-log(Mcluster_grass$c13)
+Mcluster_grass$c14_log <-log(Mcluster_grass$c14)
+Mcluster_grass$c15_log <-log(Mcluster_grass$c15)
+Mcluster_grass$c16_log <-log(Mcluster_grass$c16)
+Mcluster_grass$c17_log <-log(Mcluster_grass$c17)
+Mcluster_grass$c18_log <-log(Mcluster_grass$c18)
+Mcluster_grass$c19_log <-log(Mcluster_grass$c19)
+Mcluster_grass$c20_log <-log(Mcluster_grass$c20+0.001)
+Mcluster_grass$c21_log <-log(Mcluster_grass$c21+0.001)
+
+Mcluster_grass_ITS <- Mcluster_grass
+#save(Mcluster_grass_ITS, file = "Mcluster_grass_ITS.RDa")
+
+#Prep 16S natural grassland#
+load("MData_grass_cluster_16S.RDa")
+load("MData_aban_cluster_16S.RDa")
+
+head(MData_grass_cluster)
+
+#Test round
+load("MData_grass_cluster_16S.RDa")
+head(MData_grass_cluster)
+MData_grass_cluster_16S <- MData_grass_cluster
+
+load("MData_grass_cluster_ITS.RDa")
+head(MData_grass_cluster)
+MData_grass_cluster_ITS <- MData_grass_cluster
+
+#Plot distribution over plots per sample
+plot(mrelreads ~ cluster.grass, data = MData_grass_cluster_16S)
+plot(mrelreads ~ cluster.grass, data = MData_grass_cluster_ITS)
+
+#Check distributions 16S
+pdf(file="qqnorm_mrelreads_grass_16S.pdf", width = 16 , height = 10)
+par(mfrow=c(3,3))
+
+for (i in levels(as.factor(MData_grass_cluster_16S$code.y))) {
+  
+  reads <- MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == i)]
+  qqnorm(reads[1:9], main = i)
+  qqline(reads[1:9])
+  qqnorm(log(reads[1:9]+0.0001), main = paste(i, "log", sep = "_"))
+  qqline(log(reads[1:9]+0.0001))
+  qqnorm(sqrt(reads[1:9]), main = paste(i, "sqrt", sep = "_"))
+  qqline(sqrt(reads[1:9]))
+  
+}
+
+dev.off()
+
+#Check distributions ITS
+pdf(file="qqnorm_mrelreads_grass_ITS.pdf", width = 16 , height = 10)
+par(mfrow=c(3,3))
+
+for (i in levels(as.factor(MData_grass_cluster_ITS$code.y))) {
+  
+  reads <- MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == i)]
+  qqnorm(reads[1:9], main = i)
+  qqline(reads[1:9])
+  qqnorm(log(reads[1:9]+0.0001), main = paste(i, "log", sep = "_"))
+  qqline(log(reads[1:9]+0.0001))
+  qqnorm(sqrt(reads[1:9]), main = paste(i, "sqrt", sep = "_"))
+  qqline(sqrt(reads[1:9]))
+  
+}
+
+dev.off()
+
+#Make transformations 16S per sample
+MData_grass_cluster_16S$tmrelreads <- "NA"
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "H10B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "H10B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "H1B")] <- 
+  log(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "H1B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "H2B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "H2B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "H3B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "H3B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "H4B")] <- 
+  log(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "H4B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "H5B")] <- 
+  log(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "H5B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "H6B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "H6B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "H7B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "H7B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "H8B")] <- 
+  log(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "H8B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "H9B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "H9B")])
+
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "M10B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "M10B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "M1B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "M1B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "M2B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "M2B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "M3B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "M3B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "M4B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "M4B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "M5B")] <- 
+  log(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "M5B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "M6B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "M6B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "M7B")] <- 
+  log(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "M7B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "M8B")] <- 
+  log(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "M8B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "M9B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "M9B")])
+
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "S10B")] <- 
+  log(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "S10B")]+0.001)
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "S1B")] <- 
+  log(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "S1B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "S2B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "S2B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "S3B")] <- 
+  log(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "S3B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "S4B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "S4B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "S5B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "S5B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "S6B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "S6B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "S7B")] <- 
+  log(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "S7B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "S8B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "S8B")])
+MData_grass_cluster_16S$tmrelreads[which(MData_grass_cluster_16S$code.y == "S9B")] <- 
+  sqrt(MData_grass_cluster_16S$mrelreads[which(MData_grass_cluster_16S$code.y == "S9B")])
+
+#Make transformations ITS per sample
+MData_grass_cluster_ITS$tmrelreads <- "NA"
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "H10B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "H10B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "H1B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "H1B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "H2B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "H2B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "H3B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "H3B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "H4B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "H4B")]+0.001)
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "H5B")] <- 
+  sqrt(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "H5B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "H6B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "H6B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "H7B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "H7B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "H8B")] <- 
+  sqrt(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "H8B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "H9B")] <- 
+  MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "H9B")]
+
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "M10B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "M10B")]+0.001)
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "M1B")] <- 
+  sqrt(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "M1B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "M2B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "M2B")]+0.001)
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "M3B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "M3B")]+0.001)
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "M4B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "M4B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "M5B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "M5B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "M6B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "M6B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "M7B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "M7B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "M8B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "M8B")]+0.001)
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "M9B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "M9B")])
+
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "S10B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "S10B")]+0.001)
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "S1B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "S1B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "S2B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "S2B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "S3B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "S3B")]+0.001)
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "S4B")] <- 
+  MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "S4B")]
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "S5B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "S5B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "S6B")] <- 
+  MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "S6B")]
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "S7B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "S7B")])
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "S8B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "S8B")]+0.001)
+MData_grass_cluster_ITS$tmrelreads[which(MData_grass_cluster_ITS$code.y == "S9B")] <- 
+  log(MData_grass_cluster_ITS$mrelreads[which(MData_grass_cluster_ITS$code.y == "S9B")]+0.001)
+
+#Loop
+slope.value.glm_model <- list()
+slope.value.glm_func <- list()
+R2.value.glm <- list()
+
+for (i in levels(as.factor(MData_grass_cluster_16S$code.y))) {
+  sub_16S <- MData_grass_cluster_16S[which(MData_grass_cluster_16S$code.y == i),]
+  sub_ITS <- MData_grass_cluster_ITS[which(MData_grass_cluster_ITS$code.y == i),]
+  
+  #glm with transformed reads
+  fit_glm <- glm(as.numeric(sub_ITS$tmrelreads[sub_ITS$cluster.grass %in% c(1:9)]) ~ 
+              as.numeric(sub_16S$tmrelreads[sub_16S$cluster.grass %in% c(1:9)]), data = sub_16S)
+  slope.value.glm_func[[paste(i, sep = "_")]] <- lm.beta(fit_glm)
+  
+}
+
+slope_glm_func_grass <- melt(slope.value.glm_func)
+
+#Save
+#save(slope_glm_func_grass, file = "slope_glm_func_grass.Rda")
+
+
+#Abandoned arable
+#Prep ITS data abandoned arable soil
+load("MData_aban_cluster_ITS.RDa")
+temp1 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 1),]
+temp2 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 2),]
+temp3 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 3),]
+temp4 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 4),]
+temp5 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 5),]
+temp6 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 6),]
+temp7 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 7),]
+temp8 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 8),]
+temp9 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 9),]
+temp10 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 10),]
+temp11 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 11),]
+temp12 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 12),]
+temp13 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 13),]
+temp14 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 14),]
+temp15 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 15),]
+temp16 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 16),]
+temp17 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 17),]
+temp18 <- MData_aban_cluster[which(MData_aban_cluster$cluster.aban == 18),]
+
+Mcluster_aban <- cbind(temp1, temp2$mrelreads, temp3$mrelreads, temp4$mrelreads, temp5$mrelreads, 
+                       temp6$mrelreads, temp7$mrelreads, temp8$mrelreads, temp9$mrelreads, temp10$mrelreads,
+                       temp11$mrelreads, temp12$mrelreads, temp13$mrelreads, temp14$mrelreads, temp15$mrelreads,
+                       temp16$mrelreads, temp17$mrelreads, temp18$mrelreads)
+colnames(Mcluster_aban)[93:110] <- c("c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10",
+                                     "c11", "c12", "c13", "c14", "c15", "c16", "c17", "c18")
+
+#For stats
+Mcluster_aban$seed_density <- factor(Mcluster_aban$seed_density)
+
+#Transform clusters
+Mcluster_aban$c3_sqrt <-sqrt(Mcluster_aban$c3)
+Mcluster_aban$c4_log <-log(Mcluster_aban$c4)
+Mcluster_aban$c5_log <-log(Mcluster_aban$c5)
+Mcluster_aban$c6_log <-log(Mcluster_aban$c6)
+Mcluster_aban$c7_sqrt <-sqrt(Mcluster_aban$c7)
+Mcluster_aban$c8_log <-log(Mcluster_aban$c8+0.001)
+Mcluster_aban$c9_log <-log(Mcluster_aban$c9)
+Mcluster_aban$c10_log <-log(Mcluster_aban$c10)
+Mcluster_aban$c11_log <-log(Mcluster_aban$c11+0.001)
+Mcluster_aban$c12_log <-log(Mcluster_aban$c12)
+Mcluster_aban$c13_log <-log(Mcluster_aban$c13)
+Mcluster_aban$c14_log <-log(Mcluster_aban$c14+0.001)
+Mcluster_aban$c15_log <-log(Mcluster_aban$c15)
+Mcluster_aban$c16_log <-log(Mcluster_aban$c16+0.001)
+Mcluster_aban$c17_log <-log(Mcluster_aban$c17+0.001)
+Mcluster_aban$c18_log <-log(Mcluster_aban$c18+0.001)
+
+Mcluster_aban_ITS <- Mcluster_aban
+#save(Mcluster_aban_ITS, file = "Mcluster_aban_ITS.RDa")
+
+#Prep 16S clusters abandoned arable soil
+load("MData_aban_cluster_16S.RDa")
+head(MData_aban_cluster)
+MData_aban_cluster_16S <- MData_aban_cluster
+
+load("MData_aban_cluster_ITS.RDa")
+head(MData_aban_cluster)
+MData_aban_cluster_ITS <- MData_aban_cluster
+
+#Check distributions 16S
+pdf(file="qqnorm_mrelreads_aban_16S.pdf", width = 16 , height = 10)
+par(mfrow=c(3,3))
+
+for (i in levels(as.factor(MData_aban_cluster_16S$code.y))) {
+  
+  reads <- MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == i)]
+  qqnorm(reads[1:9], main = i)
+  qqline(reads[1:9])
+  qqnorm(log(reads[1:9]+0.0001), main = paste(i, "log", sep = "_"))
+  qqline(log(reads[1:9]+0.0001))
+  qqnorm(sqrt(reads[1:9]), main = paste(i, "sqrt", sep = "_"))
+  qqline(sqrt(reads[1:9]))
+  
+}
+
+dev.off()
+
+#Check distributions ITS
+pdf(file="qqnorm_mrelreads_aban_ITS.pdf", width = 16 , height = 10)
+par(mfrow=c(3,3))
+
+for (i in levels(as.factor(MData_aban_cluster_ITS$code.y))) {
+  
+  reads <- MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == i)]
+  qqnorm(reads[1:9], main = i)
+  qqline(reads[1:9])
+  qqnorm(log(reads[1:9]+0.0001), main = paste(i, "log", sep = "_"))
+  qqline(log(reads[1:9]+0.0001))
+  qqnorm(sqrt(reads[1:9]), main = paste(i, "sqrt", sep = "_"))
+  qqline(sqrt(reads[1:9]))
+  
+}
+
+dev.off()
+
+#Make transformations 16S per sample
+MData_aban_cluster_16S$tmrelreads <- "NA"
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "H10C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "H10C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "H1C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "H1C")]+0.001)
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "H2C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "H2C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "H3C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "H3C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "H4C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "H4C")]+0.001)
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "H5C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "H5C")]+0.001)
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "H6C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "H6C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "H7C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "H7C")]+0.001)
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "H8C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "H8C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "H9C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "H9C")])
+
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "M10C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "M10C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "M1C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "M1C")]+0.001)
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "M2C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "M2C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "M3C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "M3C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "M4C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "M4C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "M5C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "M5C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "M6C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "M6C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "M7C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "M7C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "M8C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "M8C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "M9C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "M9C")])
+
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "S10C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "S10C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "S1C")] <- 
+  sqrt(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "S1C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "S2C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "S2C")]+0.001)
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "S3C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "S3C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "S4C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "S4C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "S5C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "S5C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "S6C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "S6C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "S7C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "S7C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "S8C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "S8C")])
+MData_aban_cluster_16S$tmrelreads[which(MData_aban_cluster_16S$code.y == "S9C")] <- 
+  log(MData_aban_cluster_16S$mrelreads[which(MData_aban_cluster_16S$code.y == "S9C")])
+
+#Make transformations ITS per sample
+MData_aban_cluster_ITS$tmrelreads <- "NA"
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "H10C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "H10C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "H1C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "H1C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "H2C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "H2C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "H3C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "H3C")])
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "H4C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "H4C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "H5C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "H5C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "H6C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "H6C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "H7C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "H7C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "H8C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "H8C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "H9C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "H9C")]+0.001)
+
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "M10C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "M10C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "M1C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "M1C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "M2C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "M2C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "M3C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "M3C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "M4C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "M4C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "M5C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "M5C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "M6C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "M6C")])
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "M7C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "M7C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "M8C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "M8C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "M9C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "M9C")]+0.001)
+
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "S10C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "S10C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "S1C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "S1C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "S2C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "S2C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "S3C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "S3C")])
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "S4C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "S4C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "S5C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "S5C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "S6C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "S6C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "S7C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "S7C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "S8C")] <- 
+  sqrt(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "S8C")]+0.001)
+MData_aban_cluster_ITS$tmrelreads[which(MData_aban_cluster_ITS$code.y == "S9C")] <- 
+  log(MData_aban_cluster_ITS$mrelreads[which(MData_aban_cluster_ITS$code.y == "S9C")]+0.001)
+
+#Plot distribution over plots per sample
+library(QuantPsyc)
+
+#Loop
+slope.value.glm_func <- list()
+
+for (i in levels(as.factor(MData_aban_cluster_16S$code.y))) {
+  sub_16S <- MData_aban_cluster_16S[which(MData_aban_cluster_16S$code.y == i),]
+  sub_ITS <- MData_aban_cluster_ITS[which(MData_aban_cluster_ITS$code.y == i),]
+  
+  #glm with transformed reads
+  fit_glm <- glm(as.numeric(sub_ITS$tmrelreads[sub_ITS$cluster.aban %in% c(1:9)]) ~ 
+                   as.numeric(sub_16S$tmrelreads[sub_16S$cluster.aban %in% c(1:9)]), data = sub_16S)
+  slope.value.glm_func[[paste(i, sep = "_")]] <- lm.beta(fit_glm)
+  
+}
+
+slope_glm_func_aban <- melt(slope.value.glm_func)
+
+#Save
+#save(slope_glm_func_aban, file = "slope_glm_func_aban.Rda")
